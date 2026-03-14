@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>App Vitin - Dashboard Personal</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0a0a0f">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+    <div class="glass-container">
+        <header style="display: flex; align-items: center; justify-content: space-between;">
+            <div>
+                <h1 class="glow-text">App Vitin</h1>
+                <p class="subtitle">Gestão de Treinos Premium</p>
+            </div>
+            <button id="notif-bell" class="notif-bell" onclick="toggleNotifications()">
+                🔔
+                <span id="notif-badge" class="notif-badge hidden">0</span>
+            </button>
+        </header>
+
+        <!-- Painel de Notificações -->
+        <div id="notif-panel" class="notif-panel hidden">
+            <div class="notif-header">
+                <h3>Notificações</h3>
+                <button onclick="markAllRead()" class="btn-create-ex" style="font-size: 0.7rem;">Marcar lidas</button>
+            </div>
+            <div id="notif-list" class="notif-list">
+                <p class="subtitle" style="text-align:center; padding:1rem;">Nenhuma notificação</p>
+            </div>
+        </div>
+
+        <main>
+            <section id="stats-overview" class="glass-card">
+                <div class="stat-item">
+                    <span id="stat-total" class="stat-value">0</span>
+                    <span class="stat-label">Alunos Ativos</span>
+                </div>
+                <div class="stat-item">
+                    <span id="stat-today" class="stat-value">0</span>
+                    <span class="stat-label">Treinaram Hoje</span>
+                </div>
+            </section>
+
+            <section id="students-list">
+                <div class="header-action">
+                    <h2 class="section-title">Seus Alunos</h2>
+                    <button class="btn-create-ex" onclick="showNewStudentForm()">+ Novo Aluno</button>
+                </div>
+                <div id="students-grid" class="grid">
+                    <!-- Dinamicamente preenchido pelo JS -->
+                </div>
+            </section>
+
+            <!-- Screen: Exercises Library (Hidden) -->
+            <section id="exercises-library" class="hidden">
+                <h2 class="section-title">Biblioteca de Exercícios</h2>
+                <div id="library-grid" class="exercise-options">
+                    <!-- Preenchido pelo JS -->
+                </div>
+            </section>
+
+            <!-- Screen: Challenges (Hidden) -->
+            <section id="challenges-view" class="hidden">
+                <h2 class="section-title">Desafio Global</h2>
+                <div class="glass-card" style="padding: 1.5rem;">
+                    <p style="margin-bottom: 1rem; color: var(--text-dim); font-size: 0.9rem;">
+                        O desafio ativo aparecerá em destaque para todos os seus alunos.
+                    </p>
+                    <div class="input-group">
+                        <label>Título do Desafio 🏆</label>
+                        <input type="text" id="challenge-title" placeholder="Ex: Desafio da Água 3L" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px; border-radius: 8px; width: 100%;">
+                    </div>
+                    <div class="input-group" style="margin-top: 1rem;">
+                        <label>Descrição e Regras</label>
+                        <textarea id="challenge-desc" rows="3" placeholder="Ex: Beba 3 litros de água todos os dias desta semana para bater a meta." style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 10px; border-radius: 8px; width: 100%; resize: none;"></textarea>
+                    </div>
+                    
+                    <button id="btn-save-challenge" class="btn-primary" style="margin-top: 1.5rem; width: 100%;">Lançar Desafio Global 🚀</button>
+                    <button id="btn-remove-challenge" class="btn-danger" style="margin-top: 0.5rem; width: 100%; background: #ef4444; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; display: none;">Encerrar Desafio Atual</button>
+                </div>
+            </section>
+
+            <!-- Screen: Profile (Hidden) -->
+            <section id="profile-view" class="hidden">
+                <h2 class="section-title">Seu Perfil</h2>
+                <div class="glass-card profile-info">
+                    <div class="stat-item">
+                        <span class="stat-label">Personal Trainer</span>
+                        <span class="stat-value">Prof. Victor</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">CREF</span>
+                        <span class="stat-value">123456-G/SP</span>
+                    </div>
+                    <button class="btn-primary" style="margin-top: 2rem;">Editar Perfil</button>
+                </div>
+            </section>
+
+            <!-- Screen: Workout Creator (Hidden by default) -->
+            <section id="workout-creator" class="hidden">
+                <div class="header-action">
+                    <button id="close-creator" class="icon-btn">←</button>
+                    <h2>Montar Treino</h2>
+                </div>
+                
+                <div id="selected-student-info" class="glass-card" style="display:flex; justify-content:space-between; align-items:center;">
+                    <p>Aluno: <span id="current-student-name">--</span></p>
+                    <button id="whatsapp-link-btn" class="btn-whatsapp" onclick="copyWhatsAppLink()">📲 Link WhatsApp</button>
+                </div>
+
+                <!-- Seletor de Dia da Semana -->
+                <div class="day-selector-container">
+                    <div class="day-tabs">
+                        <button class="day-tab active" data-day="seg">SEG</button>
+                        <button class="day-tab" data-day="ter">TER</button>
+                        <button class="day-tab" data-day="qua">QUA</button>
+                        <button class="day-tab" data-day="qui">QUI</button>
+                        <button class="day-tab" data-day="sex">SEX</button>
+                        <button class="day-tab" data-day="sab">SAB</button>
+                        <button class="day-tab" data-day="dom">DOM</button>
+                    </div>
+                </div>
+
+                <div id="copy-day-section" class="glass-card" style="margin-bottom: 1rem; padding: 0.8rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem;">
+                    <span>Copiar treino de outro dia:</span>
+                    <select id="copy-day-select" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 4px; border-radius: 8px;">
+                        <option value="">Selecione...</option>
+                        <option value="seg">Segunda</option>
+                        <option value="ter">Terça</option>
+                        <option value="qua">Quarta</option>
+                        <option value="qui">Quinta</option>
+                        <option value="sex">Sexta</option>
+                        <option value="sab">Sábado</option>
+                        <option value="dom">Domingo</option>
+                    </select>
+                    <button onclick="copyWorkoutFromDay()" class="btn-primary" style="padding: 4px 10px; font-size: 0.75rem;">Copiar</button>
+                </div>
+
+                <div id="exercises-list">
+                    <!-- Exercises added go here -->
+                </div>
+
+                <!-- Seção de Cardio -->
+                <div class="glass-card cardio-section">
+                    <h3 class="section-title" style="font-size: 1.1rem; margin-bottom: 1rem;">🏃 Cardio do Dia</h3>
+                    <div class="inputs-row">
+                        <div class="input-group">
+                            <label>Atividade</label>
+                            <input type="text" id="cardio-type" placeholder="Ex: Esteira">
+                        </div>
+                        <div class="input-group">
+                            <label>Tempo (min)</label>
+                            <input type="number" id="cardio-time" placeholder="30">
+                        </div>
+                    </div>
+                </div>
+
+                <button id="add-exercise-btn" class="btn-primary glow-border">+ Adicionar Exercício</button>
+                <button id="save-workout-btn" class="btn-success">Salvar Plano Semanal</button>
+            </section>
+        </main>
+
+        <nav class="bottom-nav">
+            <button id="nav-students" class="nav-btn active">Alunos</button>
+            <button id="nav-exercises" class="nav-btn">Exercícios</button>
+            <button id="nav-challenges" class="nav-btn">Desafios</button>
+            <button id="nav-profile" class="nav-btn">Perfil</button>
+        </nav>
+    </div>
+
+    <script src="muscle-icons.js"></script>
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => console.log('PWA carregado!', reg))
+                    .catch(err => console.log('Erro PWA:', err));
+            });
+        }
+    </script>
+</body>
+</html>
