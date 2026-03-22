@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meu Treino - App Vitin</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0a0a0f">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
@@ -44,6 +44,27 @@
             </div>
         </div>
 
+        <!-- Conteúdo: Explorar Treinos (Marketplace) -->
+        <div id="discover-content" class="hidden" style="margin-bottom: 5rem;">
+            <header style="text-align: left; margin-bottom: 2rem;">
+                <h2 class="glow-text" style="font-size: 1.8rem;">Descobrir Elite</h2>
+                <p class="subtitle">Protocolos dos melhores treinadores do CT CDE</p>
+            </header>
+            
+            <section>
+                <h3 class="section-title">Treinadores Certificados 🏆</h3>
+                <div id="trainer-grid" class="trainer-grid">
+                    <!-- Dinâmico -->
+                </div>
+            </section>
+
+            <section id="trainer-details" class="hidden" style="margin-top: 2rem;">
+                <button onclick="hideTrainerDetails()" class="btn-create-ex" style="margin-bottom: 1rem;">← Voltar</button>
+                <div id="selected-trainer-info"></div>
+                <div id="protocol-list" class="protocol-list"></div>
+            </section>
+        </div>
+
         <!-- Estado: Sem treino -->
         <div id="empty-state" class="empty-state">
             <div class="empty-icon">🏋️</div>
@@ -76,331 +97,21 @@
                 Finalizar Treino 🔥
             </button>
         </main>
+
+        <!-- Navegação Inferior Aluno -->
+        <nav class="student-nav">
+            <button id="tab-workout" class="student-nav-btn active" onclick="switchStudentTab('workout')">
+                <span>🏋️</span>
+                Treino
+            </button>
+            <button id="tab-discover" class="student-nav-btn" onclick="switchStudentTab('discover')">
+                <span>🔥</span>
+                Explorar
+            </button>
+        </nav>
     </div>
 
-    <script src="muscle-icons.js"></script>
-    <script>
-        let currentWorkout = null;
-        let completedSets = {};
-        let currentDay = 'seg';
-        let currentStudentId = null;
-        let currentStudentName = '';
-
-        // ────────────────────────────────────────
-        // INICIALIZAÇÃO: Token e Isolamento Total
-        // ────────────────────────────────────────
-        document.addEventListener('DOMContentLoaded', async () => {
-            const pathParts = window.location.pathname.split('/');
-            const token = pathParts.length > 2 ? pathParts[2] : null;
-
-            if (!token) {
-                showInvalidAccess();
-                return;
-            }
-            
-            try {
-                const res = await fetch(`/api/students/by-token/${token}`);
-                if (res.ok) {
-                    const student = await res.json();
-                    currentStudentId = student.id;
-                    currentStudentName = student.name;
-                    document.getElementById('workout-date').innerText = `Olá, ${student.name}! 💪`;
-                    document.getElementById('student-selector').classList.add('hidden');
-                    loadChallenge();
-                    loadWorkout(student.id);
-                    checkNotifications();
-                } else {
-                    showInvalidAccess();
-                }
-            } catch (e) {
-                showInvalidAccess();
-            }
-        });
-
-        function showInvalidAccess() {
-            document.getElementById('student-selector').classList.add('hidden');
-            document.getElementById('workout-content').classList.add('hidden');
-            document.getElementById('header-info').innerHTML = `
-                <div style="text-align: center; margin-top: 50px;">
-                    <h2 style="color: #ef4444; margin-bottom: 10px;">Acesso Restrito 🚫</h2>
-                    <p style="color: var(--text-dim);">Para acessar seu treino, peça o seu Link de Acesso Exclusivo ao seu Personal Trainer.</p>
-                </div>
-            `;
-        }
-
-        // ────────────────────────────────────────
-        // DESAFIOS GLOBAIS
-        // ────────────────────────────────────────
-        async function loadChallenge() {
-            try {
-                const res = await fetch('/api/challenges/active');
-                if (res.ok) {
-                    const challenge = await res.json();
-                    const container = document.getElementById('challenge-container');
-                    container.innerHTML = `
-                        <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(139, 92, 246, 0.2)); border: 1px solid rgba(245, 158, 11, 0.4); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; display: flex; align-items: flex-start; gap: 10px;">
-                            <span style="font-size: 1.5rem;">🏆</span>
-                            <div>
-                                <h4 style="color: #f59e0b; margin-bottom: 3px; font-size: 0.95rem;">Desafio da Semana</h4>
-                                <h3 style="color: white; font-size: 1.1rem; margin-bottom: 5px;">${challenge.title}</h3>
-                                <p style="color: rgba(255,255,255,0.8); font-size: 0.85rem; line-height: 1.4;">${challenge.description}</p>
-                            </div>
-                        </div>
-                    `;
-                }
-            } catch (e) { /* sem desafio ativo */ }
-        }
-
-        // ────────────────────────────────────────
-        // NOTIFICAÇÕES DO ALUNO
-        // ────────────────────────────────────────
-        async function checkNotifications() {
-            if (!currentStudentId) return;
-            try {
-                const res = await fetch(`/api/notifications/unread-count/aluno?student_id=${currentStudentId}`);
-                const data = await res.json();
-                const alert = document.getElementById('new-workout-alert');
-                if (data.count > 0) {
-                    alert.classList.remove('hidden');
-                } else {
-                    alert.classList.add('hidden');
-                }
-            } catch (e) { /* silêncio */ }
-        }
-
-        window.dismissAlert = async () => {
-            document.getElementById('new-workout-alert').classList.add('hidden');
-            await fetch('/api/notifications/mark-read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: 'aluno', student_id: currentStudentId })
-            });
-        };
-
-        // ────────────────────────────────────────
-        // CARREGAMENTO DE TREINO
-        // ────────────────────────────────────────
-        async function loadWorkout(studentId) {
-            try {
-                const response = await fetch(`/api/workouts/${studentId}`);
-                if (response.ok) {
-                    currentWorkout = await response.json();
-                    document.getElementById('day-selector-aluno').classList.remove('hidden');
-                    
-                    // Carrega progresso salvo do dia atual
-                    await loadProgress();
-                    renderWorkout();
-                } else {
-                    currentWorkout = null;
-                    showEmptyState();
-                }
-            } catch (error) {
-                showEmptyState();
-            }
-        }
-
-        // ────────────────────────────────────────
-        // PERSISTÊNCIA DE PROGRESSO 
-        // ────────────────────────────────────────
-        async function loadProgress() {
-            if (!currentStudentId) return;
-            try {
-                const res = await fetch(`/api/progress/${currentStudentId}/${currentDay}`);
-                if (res.ok) {
-                    const saved = await res.json();
-                    // Merge: só carrega as chaves do dia atual
-                    Object.keys(saved).forEach(key => {
-                        completedSets[key] = saved[key];
-                    });
-                }
-            } catch (e) { /* silêncio */ }
-        }
-
-        async function saveProgress() {
-            if (!currentStudentId) return;
-            // Filtra só as chaves do dia atual
-            const dayProgress = {};
-            Object.keys(completedSets).forEach(key => {
-                if (key.startsWith(currentDay + '-')) {
-                    dayProgress[key] = completedSets[key];
-                }
-            });
-            try {
-                await fetch(`/api/progress/${currentStudentId}/${currentDay}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ completedSets: dayProgress })
-                });
-            } catch (e) { /* silêncio */ }
-        }
-
-        // Day Tabs setup
-        document.querySelectorAll('.day-tab').forEach(tab => {
-            tab.onclick = async () => {
-                document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                currentDay = tab.dataset.day;
-                await loadProgress();
-                renderWorkout();
-            };
-        });
-
-        function showEmptyState() {
-            document.getElementById('empty-state').classList.remove('hidden');
-            document.getElementById('workout-content').classList.add('hidden');
-        }
-
-        function renderWorkout() {
-            if (!currentWorkout) return showEmptyState();
-
-            const dayExercises = currentWorkout.weeklyWorkouts 
-                ? currentWorkout.weeklyWorkouts[currentDay] 
-                : (currentDay === 'seg' ? currentWorkout.exercises : []);
-            const dayCardio = currentWorkout.weeklyCardio 
-                ? currentWorkout.weeklyCardio[currentDay] 
-                : null;
-
-            if ((!dayExercises || dayExercises.length === 0) && (!dayCardio || !dayCardio.type)) {
-                return showEmptyState();
-            }
-
-            document.getElementById('empty-state').classList.add('hidden');
-            document.getElementById('workout-content').classList.remove('hidden');
-            
-            const dayNames = { seg: 'Segunda', ter: 'Terça', qua: 'Quarta', qui: 'Quinta', sex: 'Sexta', sab: 'Sábado', dom: 'Domingo' };
-            document.getElementById('workout-date').innerText = `Treino de ${dayNames[currentDay]} (${currentWorkout.date || 'Hoje'})`;
-
-            // Render Cardio
-            const cardioSection = document.getElementById('cardio-content');
-            if (dayCardio && dayCardio.type) {
-                cardioSection.classList.remove('hidden');
-                document.getElementById('cardio-info').innerText = `${dayCardio.type} - ${dayCardio.time} minutos`;
-            } else {
-                cardioSection.classList.add('hidden');
-            }
-
-            // Render Exercises
-            const container = document.getElementById('workout-exercises');
-            container.innerHTML = '';
-            
-            if (dayExercises) {
-                dayExercises.forEach((ex, index) => {
-                    const globalIdx = `${currentDay}-${index}`;
-                    completedSets[globalIdx] = completedSets[globalIdx] || Array(parseInt(ex.sets)).fill(false);
-
-                    const card = document.createElement('div');
-                    card.className = 'exercise-card-student';
-                    
-                    const setsHTML = completedSets[globalIdx].map((done, setIdx) => `
-                        <button class="set-btn ${done ? 'completed' : ''}" onclick="toggleSet('${globalIdx}', ${setIdx})">
-                            ${done ? '✓' : setIdx + 1}
-                        </button>
-                    `).join('');
-
-                    card.innerHTML = `
-                        <img src="${ex.image}" onerror="this.src='https://placehold.co/400x200/1a1a1a/ffffff?text=${encodeURIComponent(ex.name)}'">
-                        <div class="student-ex-info">
-                            <h3>${ex.name}</h3>
-                            <span class="category-badge">${ex.category || 'Treino'}</span>
-                            ${ex.obs ? `<p class="ex-obs">📝 <strong>Obs:</strong> ${ex.obs}</p>` : ''}
-                            <div class="student-ex-details">
-                                <div class="detail-pill">
-                                    <span class="value">${ex.sets}</span>
-                                    <span class="label">Séries</span>
-                                </div>
-                                <div class="detail-pill">
-                                    <span class="value">${ex.reps}</span>
-                                    <span class="label">Reps</span>
-                                </div>
-                                <div class="detail-pill">
-                                    <span class="value">${ex.load} <small>kg</small></span>
-                                    <span class="label">Carga</span>
-                                </div>
-                            </div>
-                            <div class="sets-tracker">
-                                <p class="sets-label">Marcar séries:</p>
-                                <div class="sets-buttons">${setsHTML}</div>
-                                <div class="feedback-row" style="margin-top: 1rem;">
-                                    <input type="text" placeholder="Dúvida ou dificuldade?" class="feedback-input" 
-                                           value="${completedSets[globalIdx + '-fb'] || ''}"
-                                           onchange="saveFeedback('${globalIdx}', this.value)">
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-            }
-
-            updateProgress();
-        }
-
-        function toggleSet(globalIdx, setIndex) {
-            completedSets[globalIdx][setIndex] = !completedSets[globalIdx][setIndex];
-            renderWorkout();
-            saveProgress(); // Salva automaticamente no servidor!
-        }
-
-        window.saveFeedback = (globalIdx, value) => {
-            completedSets[globalIdx + '-fb'] = value;
-            saveProgress();
-        };
-
-        function updateProgress() {
-            let total = 0, done = 0;
-            Object.keys(completedSets).forEach(key => {
-                if (key.startsWith(currentDay + '-')) {
-                    total += completedSets[key].length;
-                    done += completedSets[key].filter(s => s).length;
-                }
-            });
-            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-            document.getElementById('progress-fill').style.width = pct + '%';
-            document.getElementById('progress-text').innerText = `${done} de ${total} séries concluídas (${pct}%)`;
-        }
-
-        async function finishWorkout() {
-            let total = 0, done = 0;
-            Object.keys(completedSets).forEach(key => {
-                if (key.startsWith(currentDay + '-')) {
-                    total += completedSets[key].length;
-                    done += completedSets[key].filter(s => s).length;
-                }
-            });
-
-            if (done < total) {
-                if (!confirm(`Você completou ${done} de ${total} séries. Deseja finalizar mesmo assim?`)) return;
-            }
-
-            // Pega cardio do dia
-            const dayCardio = currentWorkout?.weeklyCardio?.[currentDay];
-            const cardioStr = dayCardio?.type ? `${dayCardio.type} - ${dayCardio.time}min` : '';
-
-            try {
-                await fetch('/api/workouts/finish', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        student_id: currentStudentId,
-                        student_name: currentStudentName,
-                        day: currentDay,
-                        total_sets: total,
-                        completed_sets: done,
-                        cardio: cardioStr
-                    })
-                });
-                alert('🔥 Parabéns! Treino finalizado! Seu personal foi notificado! 💪');
-            } catch (e) {
-                alert('🔥 Parabéns! Treino finalizado! Continue assim! 💪');
-            }
-        }
-    </script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js');
-            });
-        }
-    </script>
+    <script src="/muscle-icons.js"></script>
+    <script src="/aluno.js"></script>
 </body>
 </html>

@@ -9,6 +9,13 @@ let currentStudent = null;
 let workoutExercises = [];
 let exercisesLibrary = [];
 let currentDay = 'seg';
+let adminToken = localStorage.getItem('adminToken') || '';
+
+if (!adminToken && window.location.pathname === '/') {
+    adminToken = prompt('Digite a senha de acesso do Professor:');
+    if (adminToken) localStorage.setItem('adminToken', adminToken);
+}
+
 let weeklyWorkouts = {
     seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: []
 };
@@ -22,7 +29,13 @@ let weeklyCardio = {
 // ────────────────────────────────────────
 async function pollNotifications() {
     try {
-        const res = await fetch('/api/notifications/unread-count/professor');
+        const res = await fetch('/api/notifications/unread-count/professor', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (res.status === 401) {
+            handleAuthError();
+            return;
+        }
         const data = await res.json();
         const badge = document.getElementById('notif-badge');
         if (data.count > 0) {
@@ -40,7 +53,9 @@ window.toggleNotifications = async () => {
     
     if (!panel.classList.contains('hidden')) {
         try {
-            const res = await fetch('/api/notifications/professor');
+            const res = await fetch('/api/notifications/professor', {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
             const notifs = await res.json();
             const list = document.getElementById('notif-list');
             
@@ -69,7 +84,10 @@ window.toggleNotifications = async () => {
 window.markAllRead = async () => {
     await fetch('/api/notifications/mark-read', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+        },
         body: JSON.stringify({ role: 'professor' })
     });
     document.getElementById('notif-badge').classList.add('hidden');
@@ -94,7 +112,10 @@ function formatTimeAgo(isoStr) {
 // ────────────────────────────────────────
 async function fetchStudents() {
     try {
-        const response = await fetch('/api/students');
+        const response = await fetch('/api/students', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (response.status === 401) return handleAuthError();
         const students = await response.json();
         renderStudents(students);
         updateStats(students);
@@ -139,7 +160,10 @@ function renderStudents(students) {
 
 async function renderFullLibrary() {
     if (exercisesLibrary.length === 0) {
-        const response = await fetch('/api/exercises');
+        const response = await fetch('/api/exercises', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (response.status === 401) return handleAuthError();
         exercisesLibrary = await response.json();
     }
     
@@ -231,7 +255,10 @@ async function submitNewStudent(name) {
     try {
         const response = await fetch('/api/students', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
             body: JSON.stringify({ name })
         });
         if (response.ok) {
@@ -251,7 +278,10 @@ window.deleteStudent = async (id, event) => {
     if (!confirm('Deseja realmente remover este aluno?')) return;
     
     try {
-        await fetch(`/api/students/${id}`, { method: 'DELETE' });
+        await fetch(`/api/students/${id}`, { 
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
         fetchStudents();
     } catch (error) {
         alert('Erro ao remover aluno');
@@ -270,7 +300,9 @@ async function loadDayData() {
     
     // Tenta buscar feedback do aluno para este dia
     try {
-        const res = await fetch(`/api/progress/${currentStudent.id}/${currentDay}`);
+        const res = await fetch(`/api/progress/${currentStudent.id}/${currentDay}`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
         if (res.ok) {
             const progress = await res.json();
             workoutExercises.forEach((ex, index) => {
@@ -301,9 +333,13 @@ async function openWorkoutCreator(student) {
         t.classList.remove('active');
         if(t.dataset.day === 'seg') t.classList.add('active');
     });
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
-        const response = await fetch(`/api/workouts/${student.id}`);
+        const response = await fetch(`/api/workouts/${student.id}`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
         if (response.ok) {
             const data = await response.json();
             weeklyWorkouts = data.weeklyWorkouts || {
@@ -373,7 +409,9 @@ window.copyWhatsAppLink = () => {
 async function addExercise() {
     if (exercisesLibrary.length === 0) {
         try {
-            const response = await fetch('/api/exercises');
+            const response = await fetch('/api/exercises', {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
             exercisesLibrary = await response.json();
         } catch (error) {
             console.error('Erro ao buscar exercícios:', error);
@@ -510,7 +548,10 @@ window.submitNewExercise = async () => {
     try {
         const response = await fetch('/api/exercises', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
             body: JSON.stringify({ name, category, image })
         });
         const savedEx = await response.json();
@@ -595,7 +636,10 @@ async function saveWorkout() {
     try {
         const response = await fetch('/api/workouts', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
             body: JSON.stringify(workoutData)
         });
         const res = await response.json();
@@ -610,9 +654,17 @@ async function saveWorkout() {
 // ────────────────────────────────────────
 // DESAFIOS GLOBAIS (ADMIN)
 // ────────────────────────────────────────
+function handleAuthError() {
+    localStorage.removeItem('adminToken');
+    alert('Sua sessão expirou ou a senha está incorreta.');
+    window.location.reload();
+}
+
 async function loadAdminChallenge() {
     try {
-        const res = await fetch('/api/challenges/active');
+        const res = await fetch('/api/challenges/active', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
         if (res.ok) {
             const challenge = await res.json();
             document.getElementById('challenge-title').value = challenge.title;
@@ -637,7 +689,10 @@ document.getElementById('btn-save-challenge').onclick = async () => {
     try {
         const res = await fetch('/api/challenges/active', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
             body: JSON.stringify({ title, description: desc })
         });
         if (res.ok) {
@@ -653,7 +708,10 @@ document.getElementById('btn-remove-challenge').onclick = async () => {
     if (!confirm('Tem certeza que deseja encerrar o desafio atual?')) return;
     
     try {
-        const res = await fetch('/api/challenges/active', { method: 'DELETE' });
+        const res = await fetch('/api/challenges/active', { 
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
         if (res.ok) {
             alert('Desafio encerrado!');
             loadAdminChallenge();
@@ -671,20 +729,17 @@ window.copyWhatsAppLink = () => {
         return alert("Erro: O token deste aluno não foi encontrado. Atualize a página.");
     }
     
-    let baseUrl = window.location.origin;
-    
-    // Forçar o uso do IP da rede local se o professor estiver acessando pelo atalho "127.0.0.1" ou "localhost"
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        alert("Atenção: Você acessou o sistema usando '127.0.0.1'. Vamos tentar gerar o link com o seu IP da rede Wi-Fi para que o aluno consiga acessar pelo celular dele.");
-        baseUrl = `http://192.168.0.100:${window.location.port || '5000'}`;
-    }
-
+    const baseUrl = window.location.origin;
     const link = `${baseUrl}/aluno/${currentStudent.access_token}`;
     const text = `Fala ${currentStudent.name.split(' ')[0]}!\n\nSeu treino está pronto. Acesse pelo link abaixo:\n\n🔗 ${link}`;
     
-    navigator.clipboard.writeText(text).then(() => {
-        alert('✅ Link copiado para a área de transferência:\n\n' + link + '\n\nCole no WhatsApp do aluno.');
-    }).catch(err => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            alert('✅ Link copiado para a área de transferência:\n\n' + link + '\n\nCole no WhatsApp do aluno.');
+        }).catch(err => {
+            prompt('Copie o link manualmente:', link);
+        });
+    } else {
         prompt('Copie o link manualmente:', link);
-    });
+    }
 };
