@@ -86,3 +86,14 @@ def finish_workout():
     conn.commit()
     conn.close()
     return jsonify({"status": "success"})
+
+@workouts_bp.route('/api/workouts/students/all')
+def get_all_students_simple():
+    conn = get_db_connection()
+    students = conn.execute('''
+        SELECT s.id, s.name, s.whatsapp as token, t.name as trainer_name 
+        FROM students s
+        LEFT JOIN trainers t ON s.trainer_id = t.id
+    ''').fetchall()
+    conn.close()
+    return jsonify([dict(s) for s in students])

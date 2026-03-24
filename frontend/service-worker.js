@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vitin-v1';
+const CACHE_NAME = 'vitin-cache-v3';
 const urlsToCache = [
     '/',
     '/aluno',
@@ -18,19 +18,23 @@ self.addEventListener('install', event => {
 self.addEventListener('fetch', event => {
     event.respondWith(
         caches.match(event.request)
-            .then(response => {
-                // Network first, fallback to cache
-                return fetch(event.request)
-                    .then(networkResponse => {
-                        // Update cache with fresh response
-                        if (networkResponse && networkResponse.status === 200) {
-                            const responseToCache = networkResponse.clone();
-                            caches.open(CACHE_NAME)
-                                .then(cache => cache.put(event.request, responseToCache));
-                        }
-                        return networkResponse;
-                    })
-                    .catch(() => response); // Offline: use cache
+            .then(cachedResponse => {
+                if (cachedResponse) return cachedResponse;
+                
+                return fetch(event.request).then(response => {
+                    // Cache fresh responses for static assets
+                    if (response.status === 200 && (event.request.url.includes('.css') || event.request.url.includes('.js') || event.request.url.includes('.png'))) {
+                        const responseToCache = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
+                    }
+                    return response;
+                });
+            })
+            .catch(() => {
+                // Return index.html for navigation requests (SPA) if offline
+                if (event.request.mode === 'navigate') {
+                    return caches.match('/');
+                }
             })
     );
 });

@@ -3,6 +3,7 @@ let completedSets = {};
 let currentDay = 'seg';
 let currentStudentId = null;
 let currentStudentName = '';
+let currentPlanType = 'free'; // default
 let fullCatalog = [];
 
 // ────────────────────────────────────────
@@ -10,49 +11,78 @@ let fullCatalog = [];
 // ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     const pathParts = window.location.pathname.split('/');
-    const token = pathParts.length > 2 ? pathParts[2] : null;
+    let token = pathParts.length > 2 ? pathParts[2] : null;
+
+    // Fallback para Query String ?token=...
+    if (!token) {
+        const urlParams = new URLSearchParams(window.location.search);
+        token = urlParams.get('token');
+    }
 
     if (!token) {
-        showInvalidAccess();
+        console.log("Nenhum token encontrado na URL. Mostrando seletor de teste.");
+        await initStudentSelector();
         return;
     }
     
     // Navegação por abas
     window.switchStudentTab = (tab) => {
-        const workoutContent = document.getElementById('workout-content');
-        const discoverContent = document.getElementById('discover-content');
+        const sections = ['workout-content', 'discover-content', 'feed-content', 'stats-content', 'my-protocols-content'];
+        sections.forEach(s => {
+            const el = document.getElementById(s);
+            if (el) el.classList.add('hidden');
+        });
+        
         const emptyState = document.getElementById('empty-state');
         const daySelector = document.getElementById('day-selector-aluno');
-        
         document.querySelectorAll('.student-nav-btn').forEach(b => b.classList.remove('active'));
         
         if (tab === 'workout') {
-            workoutContent.classList.remove('hidden');
-            discoverContent.classList.add('hidden');
-            daySelector.classList.remove('hidden');
-            document.getElementById('tab-workout').classList.add('active');
-            if (currentWorkout) {
-                emptyState.classList.add('hidden');
-                renderWorkout();
-            } else {
-                emptyState.classList.remove('hidden');
-            }
-        } else {
-            workoutContent.classList.add('hidden');
-            emptyState.classList.add('hidden');
-            discoverContent.classList.remove('hidden');
-            daySelector.classList.add('hidden');
-            document.getElementById('tab-discover').classList.add('active');
+            const wc = document.getElementById('workout-content');
+            if (wc) wc.classList.remove('hidden');
+            if (daySelector) daySelector.classList.remove('hidden');
+            if (!currentWorkout && emptyState) emptyState.classList.remove('hidden');
+            else if (emptyState) { emptyState.classList.add('hidden'); renderWorkout(); }
+        } else if (tab === 'discover') {
+            const dc = document.getElementById('discover-content');
+            if (dc) dc.classList.remove('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (daySelector) daySelector.classList.add('hidden');
             loadCatalog();
+        } else if (tab === 'feed') {
+            const fc = document.getElementById('feed-content');
+            if (fc) fc.classList.remove('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (daySelector) daySelector.classList.add('hidden');
+            loadFeed();
+        } else if (tab === 'stats') {
+            const sc = document.getElementById('stats-content');
+            if (sc) sc.classList.remove('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (daySelector) daySelector.classList.add('hidden');
+            trackConversionEvent('open_stats_tab');
+        } else if (tab === 'my-protocols') {
+            const mpc = document.getElementById('my-protocols-content');
+            if (mpc) mpc.classList.remove('hidden');
+            if (emptyState) emptyState.classList.add('hidden');
+            if (daySelector) daySelector.classList.add('hidden');
+            loadMyProtocols();
         }
+
+        const activeBtn = document.getElementById(`tab-${tab}`);
+        if (activeBtn) activeBtn.classList.add('active');
     };
 
     try {
-        const res = await fetch(`/api/students/by-token/${token}`);
+        const res = await fetch(`/api/students/by-token/${token}?t=${Date.now()}`);
         if (res.ok) {
             const student = await res.json();
             currentStudentId = student.id;
             currentStudentName = student.name;
+            currentPlanType = student.plan_type || 'free';
+            
+            applyPlanRestrictions();
+
             document.getElementById('workout-date').innerText = `Olá, ${student.name}! 💪`;
             document.getElementById('student-selector').classList.add('hidden');
             loadChallenge();
@@ -69,12 +99,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 function showInvalidAccess() {
     document.getElementById('student-selector').classList.add('hidden');
     document.getElementById('workout-content').classList.add('hidden');
-    const headerInfo = document.querySelector('header');
-    if (headerInfo) {
-        headerInfo.innerHTML += `
-            <div style="text-align: center; margin-top: 50px;">
+    const header = document.querySelector('header');
+    if (header && !document.getElementById('error-msg-aluno')) {
+        header.innerHTML += `
+            <div id="error-msg-aluno" style="text-align: center; margin-top: 50px; background: rgba(239, 68, 68, 0.1); padding: 20px; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2);">
                 <h2 style="color: #ef4444; margin-bottom: 10px;">Acesso Restrito 🚫</h2>
-                <p style="color: var(--text-dim);">Para acessar seu treino, peça o seu Link de Acesso Exclusivo ao seu Personal Trainer.</p>
+                <p style="color: var(--text-dim);">O link usado é inválido ou expirou. Peça um novo link ao seu treinador.</p>
+                <button class="btn-primary" onclick="window.location.href='/aluno'" style="margin-top: 15px; width: auto; padding: 10px 20px;">Ver simulador</button>
             </div>
         `;
     }
@@ -109,7 +140,7 @@ async function loadChallenge() {
 async function checkNotifications() {
     if (!currentStudentId) return;
     try {
-        const res = await fetch(`/api/notifications/unread-count/aluno?student_id=${currentStudentId}`);
+        const res = await fetch(`/api/notifications/unread-count/aluno?student_id=${currentStudentId}&t=${Date.now()}`);
         const data = await res.json();
         const alert = document.getElementById('new-workout-alert');
         if (data.count > 0) {
@@ -134,7 +165,7 @@ window.dismissAlert = async () => {
 // ────────────────────────────────────────
 async function loadWorkout(studentId) {
     try {
-        const response = await fetch(`/api/workouts/${studentId}`);
+        const response = await fetch(`/api/workouts/${studentId}?t=${Date.now()}`);
         if (response.ok) {
             currentWorkout = await response.json();
             document.getElementById('day-selector-aluno').classList.remove('hidden');
@@ -350,6 +381,76 @@ window.finishWorkout = async () => {
     }
 };
 
+// --- PREMIUM LOGIC ---
+function applyPlanRestrictions() {
+    const overlays = document.querySelectorAll('.premium-overlay');
+    if (currentPlanType === 'premium') {
+        overlays.forEach(ov => ov.style.display = 'none');
+        document.querySelectorAll('.blurred-content').forEach(bc => bc.classList.remove('blurred-content'));
+    }
+}
+
+window.showUpgradeModal = (context) => {
+    trackConversionEvent('open_upgrade_modal_' + context.replace(/\s+/g, '_'));
+    document.getElementById('upgrade-context').innerText = `O recurso de ${context} é exclusivo para alunos Pro. Não perca sua evolução!`;
+    document.getElementById('modal-upgrade').classList.remove('hidden');
+};
+
+window.closeUpgradeModal = () => document.getElementById('modal-upgrade').classList.add('hidden');
+
+window.upgradeToPremium = async () => {
+    trackConversionEvent('click_upgrade_button');
+    // Em produção, aqui abriria o Checkout (Stripe/Mercado Pago)
+    if (confirm('Deseja ativar o Plano Pro Experimental? (Simulação de Pagamento)')) {
+        try {
+            await fetch('/api/super/students', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: currentStudentId, plan_type: 'premium', name: currentStudentName })
+            });
+            alert('Parabéns! Você agora é um aluno PRO! ✨ Recarregando...');
+            location.reload();
+        } catch (e) { alert('Erro ao processar upgrade.'); }
+    }
+};
+
+async function trackConversionEvent(type) {
+    console.log('Analytics Event:', type);
+    // Em produção: fetch('/api/analytics/track', { method: 'POST', ... })
+}
+
+// --- MARKETPLACE & MEUS PROTOCOLOS ---
+async function loadMyProtocols() {
+    if (!currentStudentId) return;
+    try {
+        const res = await fetch(`/api/student/purchases?student_id=${currentStudentId}`);
+        const protocols = await res.json();
+        const container = document.getElementById('my-protocols-list');
+        
+        if (protocols.length === 0) {
+            container.innerHTML = `<div class="empty-state"><p class="subtitle">Você ainda não adquiriu nenhum protocolo elite.</p></div>`;
+            return;
+        }
+
+        container.innerHTML = protocols.map(p => `
+            <div class="protocol-card glass-card animate-fade-in">
+                <div class="protocol-info">
+                    <h4>${p.title}</h4>
+                    <p>Treinador: <b>${p.trainer_name}</b></p>
+                </div>
+                <button class="buy-btn-small" onclick="activateProtocol(${p.id}, '${p.title}')">Ativar Protocolo 🔥</button>
+            </div>
+        `).join('');
+    } catch (e) { console.error(e); }
+}
+
+window.activateProtocol = (id, title) => {
+    if (confirm(`Deseja substituir sua ficha atual pelo protocolo "${title}"?\n\n(Atenção: Seu treino atual será arquivado).`)) {
+        alert('Protocolo ativado com sucesso! (Em desenvolvimento)');
+        // Lógica de ativação real envolveria trocar o workout_id ou copiar exercícios
+    }
+};
+
 // ────────────────────────────────────────
 // MARKETPLACE LOGIC
 // ────────────────────────────────────────
@@ -441,9 +542,127 @@ window.buyProtocol = async (id, title, trainerName) => {
     }
 };
 
+// ────────────────────────────────────────
+// LÓGICA DO FEED (24H)
+// ────────────────────────────────────────
+async function loadFeed() {
+    try {
+        const res = await fetch('/api/feed');
+        const posts = await res.json();
+        renderFeed(posts);
+    } catch (e) {
+        console.error('Erro ao carregar feed', e);
+    }
+}
+
+function renderFeed(posts) {
+    const container = document.getElementById('feed-list');
+    if (posts.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p class="subtitle">Nenhum post nas últimas 24h. Seja o primeiro! 🔥</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = posts.map(post => {
+        const expires = new Date(post.expires_at);
+        const diff = Math.max(0, Math.floor((expires - new Date()) / (1000 * 60))); // minutos restantes
+        const hours = Math.floor(diff / 60);
+        const mins = diff % 60;
+
+        return `
+            <div class="feed-card animate-fade-in">
+                <div class="feed-card-header">
+                    <div class="feed-avatar">${post.student_name[0]}</div>
+                    <div class="feed-user-info">
+                        <h4>${post.student_name}</h4>
+                        <span class="feed-time">${new Date(post.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    </div>
+                </div>
+                <img src="${post.image_url}" class="feed-img" onerror="this.src='https://placehold.co/400x400/1a1a1a/ffffff?text=Treino+Finalizado'">
+                <div class="feed-footer">
+                    <p class="feed-caption">${post.caption}</p>
+                    <span class="expires-tag">⏳ Expira em ${hours}h ${mins}m</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+window.showPostModal = () => {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content glass-card">
+            <h3>Postar Resultado 🔥</h3>
+            <p class="subtitle">Sua foto sumirá em 24 horas.</p>
+            <div class="post-form-modal" style="margin-top: 1.5rem;">
+                <input type="text" id="post-image" placeholder="URL da Foto (ou simule um upload)">
+                <textarea id="post-caption" placeholder="E aí, como foi o treino de hoje?" rows="3"></textarea>
+                <button class="btn-success" onclick="submitPost()">Postar Agora!</button>
+                <button class="btn-primary" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+};
+
+window.submitPost = async () => {
+    const image_url = document.getElementById('post-image').value;
+    const caption = document.getElementById('post-caption').value;
+
+    if (!image_url) return alert('Por favor, insira uma imagem!');
+
+    try {
+        const res = await fetch('/api/feed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                student_id: currentStudentId,
+                image_url: image_url,
+                caption: caption
+            })
+        });
+
+        if (res.ok) {
+            document.querySelector('.modal-overlay').remove();
+            loadFeed();
+        } else {
+            alert('Erro ao postar. Tente novamente.');
+        }
+    } catch (e) {
+        alert('Erro ao postar.');
+    }
+};
+
 // PWA
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/service-worker.js');
     });
+}
+
+async function initStudentSelector() {
+    const headerTitle = document.querySelector('header h1');
+    if (headerTitle) headerTitle.innerText = "Simulador de Aluno";
+    
+    const selector = document.getElementById('student-selector');
+    if (selector) selector.classList.remove('hidden');
+    
+    try {
+        const res = await fetch(`/api/workouts/students/all?t=${Date.now()}`);
+        const students = await res.json();
+        const btnContainer = document.getElementById('student-btns');
+        if (btnContainer) {
+            btnContainer.innerHTML = students.map(s => `
+                <button class="btn-primary" onclick="window.location.href='/aluno/${s.token || s.id}'" style="width:100%; margin-bottom:8px; display:block; padding:15px; border-radius:12px;">
+                    ${s.name} (${s.trainer_name || 'Personal Vitin'})
+                </button>
+            `).join('');
+        }
+    } catch (e) {
+        if (selector) selector.innerHTML = '<p style="color:#ef4444">Nenhum aluno cadastrado no sistema ainda.</p>';
+    }
 }

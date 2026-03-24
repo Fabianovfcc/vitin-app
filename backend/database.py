@@ -22,9 +22,18 @@ def init_db():
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            last_workout TEXT,
+            whatsapp TEXT,
+            trainer_id INTEGER,
+            gym_id INTEGER,
+            age TEXT,
+            weight TEXT,
+            goal TEXT,
             status TEXT DEFAULT 'active',
-            access_token TEXT UNIQUE
+            plan_type TEXT DEFAULT 'free',
+            subscription_expires_at TEXT,
+            access_token TEXT UNIQUE,
+            created_at TEXT,
+            last_workout TEXT
         )
     ''')
     
@@ -98,11 +107,29 @@ def init_db():
         )
     ''')
     
+    # Tabela de Feed de Resultados (Social Proof) - Expira em 24h
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS feed_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            student_name TEXT,
+            image_url TEXT NOT NULL,
+            caption TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY (student_id) REFERENCES students(id)
+        )
+    ''')
+    
     # Tabela de Treinadores Elite (Marketplace)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS trainers (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            password TEXT,
+            gym_id INTEGER,
+            whatsapp TEXT,
+            status TEXT DEFAULT 'active',
             specialty TEXT,
             bio TEXT,
             image TEXT,
@@ -110,6 +137,17 @@ def init_db():
         )
     ''')
     
+    # Tabela de Academias (Novo!)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS gyms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            owner_name TEXT,
+            plan TEXT DEFAULT 'premium',
+            created_at TEXT NOT NULL
+        )
+    ''')
+
     # Tabela de Catálogo de Treinos (Marketplace)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS catalog_workouts (
@@ -122,17 +160,47 @@ def init_db():
             FOREIGN KEY (trainer_id) REFERENCES trainers(id)
         )
     ''')
+    
+    # Tabela de Vendas do Marketplace (Novo!)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS marketplace_sales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workout_id INTEGER NOT NULL,
+            trainer_id INTEGER NOT NULL,
+            student_id INTEGER NOT NULL,
+            price REAL NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (workout_id) REFERENCES catalog_workouts(id),
+            FOREIGN KEY (trainer_id) REFERENCES trainers(id),
+            FOREIGN KEY (student_id) REFERENCES students(id)
+        )
+    ''')
 
-    # Migrações simples
-    try:
-        cursor.execute("SELECT access_token FROM students LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE students ADD COLUMN access_token TEXT UNIQUE")
+    # Migrações Individuais (Garantir que todas as colunas existam uma por uma)
+    def add_col_if_missing(table, col, definition):
+        try:
+            cursor.execute(f"SELECT {col} FROM {table} LIMIT 1")
+        except sqlite3.OperationalError:
+            print(f"Migrando: Adicionando {col} em {table}")
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {definition}")
 
-    try:
-        cursor.execute("SELECT updated_at FROM workouts LIMIT 1")
-    except sqlite3.OperationalError:
-        cursor.execute("ALTER TABLE workouts ADD COLUMN updated_at TEXT")
+    # Estudantes
+    add_col_if_missing("students", "whatsapp", "TEXT")
+    add_col_if_missing("students", "trainer_id", "INTEGER")
+    add_col_if_missing("students", "gym_id", "INTEGER")
+    add_col_if_missing("students", "age", "TEXT")
+    add_col_if_missing("students", "weight", "TEXT")
+    add_col_if_missing("students", "goal", "TEXT")
+    add_col_if_missing("students", "plan_type", "TEXT DEFAULT 'free'")
+    add_col_if_missing("students", "subscription_expires_at", "TEXT")
+    add_col_if_missing("students", "access_token", "TEXT UNIQUE")
+    add_col_if_missing("students", "created_at", "TEXT")
+
+    # Professores
+    add_col_if_missing("trainers", "password", "TEXT")
+    add_col_if_missing("trainers", "gym_id", "INTEGER")
+    add_col_if_missing("trainers", "whatsapp", "TEXT")
+    add_col_if_missing("trainers", "status", "TEXT DEFAULT 'active'")
 
     # Seed data
     cursor.execute('SELECT COUNT(*) FROM students')
@@ -192,6 +260,21 @@ def init_db():
             })
             cursor.execute("INSERT INTO catalog_workouts (trainer_id, title, price, description, workout_json) VALUES (?, ?, ?, ?, ?)", 
                            (tid, f"Leg Day Hardcore ({name.split()[1]})", 199.90, "Treino de pernas de alta intensidade que desafia seus limites.", sample_protocol))
+
+    cursor.execute('SELECT COUNT(*) FROM gyms')
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO gyms (name, owner_name, created_at) VALUES (?, ?, ?)",
+                       ('Academia Elite Fit', 'Carlos Magno', datetime.now().isoformat()))
+        cursor.execute("INSERT INTO gyms (name, owner_name, created_at) VALUES (?, ?, ?)",
+                       ('BlueFit Centro', 'Roberto Silva', datetime.now().isoformat()))
+
+    # Seed de Vendas (Marketplace)
+    cursor.execute('SELECT COUNT(*) FROM marketplace_sales')
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO marketplace_sales (workout_id, trainer_id, student_id, price, created_at) VALUES (?, ?, ?, ?, ?)",
+                       (1, 1, 1, 199.90, datetime.now().isoformat()))
+        cursor.execute("INSERT INTO marketplace_sales (workout_id, trainer_id, student_id, price, created_at) VALUES (?, ?, ?, ?, ?)",
+                       (1, 1, 2, 199.90, datetime.now().isoformat()))
 
     conn.commit()
     conn.close()

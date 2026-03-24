@@ -8,6 +8,8 @@ from backend.routes_students import students_bp
 from backend.routes_workouts import workouts_bp
 from backend.routes_admin import admin_bp
 from backend.routes_catalog import catalog_bp
+from backend.routes_feed import feed_bp
+from backend.routes_super_admin import super_admin_bp
 
 load_dotenv()
 
@@ -19,6 +21,8 @@ app.register_blueprint(students_bp)
 app.register_blueprint(workouts_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(catalog_bp)
+app.register_blueprint(feed_bp)
+app.register_blueprint(super_admin_bp, url_prefix='/api/super')
 
 # ────────────────────────────────────────
 # ROTAS DE PÁGINAS ESTÁTICAS

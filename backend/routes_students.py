@@ -14,12 +14,13 @@ def handle_students():
     if request.method == 'POST':
         data = request.get_json()
         name = data.get('name')
+        whatsapp = data.get('whatsapp')
         token = str(uuid.uuid4())[:8]
-        cursor = conn.execute("INSERT INTO students (name, access_token) VALUES (?, ?)", (name, token))
+        cursor = conn.execute("INSERT INTO students (name, whatsapp, access_token) VALUES (?, ?, ?)", (name, whatsapp, token))
         new_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        return jsonify({"status": "success", "id": new_id, "access_token": token}), 201
+        return jsonify({"status": "success", "id": new_id, "access_token": token, "whatsapp": whatsapp}), 201
     
     students = conn.execute('SELECT * FROM students').fetchall()
     conn.close()
@@ -45,3 +46,36 @@ def get_student_by_token(token):
     if student:
         return jsonify(dict(student))
     return jsonify({"error": "Aluno não encontrado"}), 404
+
+@students_bp.route('/api/students/by-whatsapp/<whatsapp>')
+def get_student_by_whatsapp(whatsapp):
+    conn = get_db_connection()
+    student = conn.execute('SELECT * FROM students WHERE whatsapp = ?', (whatsapp,)).fetchone()
+    conn.close()
+    if student:
+        return jsonify(dict(student))
+    return jsonify({"error": "Aluno não encontrado"}), 404
+
+@students_bp.route('/api/student/purchases', methods=['GET'])
+def get_student_purchases():
+    student_id = request.args.get('student_id')
+    if not student_id:
+        return jsonify({"error": "student_id obrigatório"}), 400
+    
+    conn = get_db_connection()
+    purchases = conn.execute('''
+        SELECT w.title, t.name as trainer_name, s.price, s.created_at, w.id
+        FROM marketplace_sales s
+        JOIN catalog_workouts w ON s.workout_id = w.id
+        JOIN trainers t ON s.trainer_id = t.id
+        WHERE s.student_id = ?
+    ''', (student_id,)).fetchall()
+    conn.close()
+    return jsonify([dict(p) for p in purchases])
+
+@students_bp.route('/api/analytics/track', methods=['POST'])
+def track_analytics():
+    data = request.json
+    # Por enquanto apenas logamos no servidor, mas poderíamos salvar numa tabela 'events'
+    print(f"ANALYTICS: Evento '{data.get('event_type')}' do aluno {data.get('student_id')}")
+    return jsonify({"status": "captured"})

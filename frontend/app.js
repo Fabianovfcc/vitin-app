@@ -10,6 +10,13 @@ let workoutExercises = [];
 let exercisesLibrary = [];
 let currentDay = 'seg';
 let adminToken = localStorage.getItem('adminToken') || '';
+let serverIP = window.location.hostname; // Fallback
+
+// Buscar IP real do servidor para links de WhatsApp
+fetch('/api/info/ip').then(r => r.json()).then(data => {
+    if (data.ip && data.ip !== '127.0.0.1') serverIP = data.ip;
+    console.log('Server Local IP for mobile access:', serverIP);
+});
 
 if (!adminToken && window.location.pathname === '/') {
     adminToken = prompt('Digite a senha de acesso do Professor:');
@@ -112,7 +119,7 @@ function formatTimeAgo(isoStr) {
 // ────────────────────────────────────────
 async function fetchStudents() {
     try {
-        const response = await fetch('/api/students', {
+        const response = await fetch(`/api/students?t=${Date.now()}`, {
             headers: { 'Authorization': `Bearer ${adminToken}` }
         });
         if (response.status === 401) return handleAuthError();
@@ -160,7 +167,7 @@ function renderStudents(students) {
 
 async function renderFullLibrary() {
     if (exercisesLibrary.length === 0) {
-        const response = await fetch('/api/exercises', {
+        const response = await fetch(`/api/exercises?t=${Date.now()}`, {
             headers: { 'Authorization': `Bearer ${adminToken}` }
         });
         if (response.status === 401) return handleAuthError();
@@ -215,7 +222,14 @@ function setupEventListeners() {
         switchTab('challenges-view', 'nav-challenges');
         loadAdminChallenge();
     };
-    document.getElementById('nav-profile').onclick = () => switchTab('profile-view', 'nav-profile');
+    document.getElementById('nav-feed').onclick = () => {
+        switchTab('feed-view', 'nav-feed');
+        loadTrainerFeed();
+    };
+    document.getElementById('nav-profile').onclick = () => {
+        switchTab('profile-view', 'nav-profile');
+        loadProfile();
+    };
 
     // Day Tabs
     document.querySelectorAll('.day-tab').forEach(tab => {
@@ -234,7 +248,7 @@ function setupEventListeners() {
 }
 
 function switchTab(sectionId, navId) {
-    ['students-list', 'exercises-library', 'challenges-view', 'profile-view', 'workout-creator'].forEach(id => {
+    ['students-list', 'exercises-library', 'challenges-view', 'profile-view', 'workout-creator', 'feed-view'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
     });
@@ -387,36 +401,20 @@ function closeWorkoutCreator() {
 // ────────────────────────────────────────
 // WHATSAPP LINK
 // ────────────────────────────────────────
-window.copyWhatsAppLink = () => {
-    if (!currentStudent) return;
-    const token = currentStudent.access_token || '';
-    const link = `${window.location.origin}/aluno/${token}`;
-    const msg = `Oi ${currentStudent.name}! 💪\n\nSeu treino está atualizado! Acesse pelo link:\n${link}\n\n- Seu Personal 🏋️`;
-    
-    // Tenta copiar para clipboard
-    navigator.clipboard.writeText(msg).then(() => {
-        alert('Link copiado para a área de transferência!\n\nCole no WhatsApp do aluno.');
-    }).catch(() => {
-        // Fallback: abre WhatsApp Web diretamente
-        const waLink = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-        window.open(waLink, '_blank');
-    });
-};
 
 // ────────────────────────────────────────
 // EXERCÍCIOS
 // ────────────────────────────────────────
 async function addExercise() {
-    if (exercisesLibrary.length === 0) {
-        try {
-            const response = await fetch('/api/exercises', {
-                headers: { 'Authorization': `Bearer ${adminToken}` }
-            });
-            exercisesLibrary = await response.json();
-        } catch (error) {
-            console.error('Erro ao buscar exercícios:', error);
-            return;
-        }
+    // Sempre busca do servidor para evitar cache e garantir novos exercícios
+    try {
+        const response = await fetch(`/api/exercises?t=${Date.now()}`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        exercisesLibrary = await response.json();
+    } catch (error) {
+        console.error('Erro ao buscar exercícios:', error);
+        return;
     }
     showExerciseSelector();
 }
@@ -426,6 +424,9 @@ function resolveImage(imgStr, category) {
         const group = imgStr.replace('icon:', '');
         return window.MUSCLE_ICONS?.[group] || `https://placehold.co/60x60/1a1a1a/8b5cf6?text=${category?.[0] || '?'}`;
     }
+    if (imgStr && imgStr.startsWith('/uploads/')) return imgStr;
+    if (imgStr && imgStr.startsWith('http')) return imgStr;
+    
     return imgStr || `https://placehold.co/60x60/1a1a1a/8b5cf6?text=?`;
 }
 
@@ -433,47 +434,75 @@ function showExerciseSelector() {
     const existing = document.getElementById('exercise-selector');
     if (existing) existing.remove();
 
-    const grouped = {};
-    exercisesLibrary.forEach(ex => {
-        if (!grouped[ex.category]) grouped[ex.category] = [];
-        grouped[ex.category].push(ex);
-    });
-
-    let optionsHTML = '';
-    for (const [category, exercises] of Object.entries(grouped)) {
-        const groupIcon = resolveImage(`icon:${category}`, category);
-        optionsHTML += `<div class="category-group">
-            <div class="category-header">
-                <img src="${groupIcon}" class="category-icon">
-                <h4>${category}</h4>
-            </div>`;
-        exercises.forEach(ex => {
-            const img = resolveImage(ex.image, ex.category);
-            optionsHTML += `
-                <div class="exercise-option" onclick="selectExercise(${ex.id})">
-                    <img src="${img}" class="exercise-thumb" onerror="this.style.display='none'">
-                    <div><strong>${ex.name}</strong></div>
-                </div>`;
-        });
-        optionsHTML += `</div>`;
-    }
-
     const modal = document.createElement('div');
     modal.id = 'exercise-selector';
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-        <div class="modal-content glass-card">
-            <div class="exercise-header">
-                <div>
-                    <h3>Selecione o Exercício</h3>
-                    <button class="btn-create-ex" onclick="showNewExerciseForm()">+ Criar Novo</button>
+        <div class="modal-content glass-card selector-modal-content">
+            <div class="modal-header-flex">
+                <h3>Selecionar Exercício</h3>
+                <div class="header-btns">
+                    <button class="btn-create-ex-small" onclick="showNewExerciseForm()">+ Novo</button>
+                    <button onclick="document.getElementById('exercise-selector').remove()" class="close-selector-btn">×</button>
                 </div>
-                <button onclick="document.getElementById('exercise-selector').remove()" class="icon-btn">×</button>
             </div>
-            <div class="exercise-options">${optionsHTML}</div>
+            
+            <div class="search-container-modal">
+                <input type="text" id="ex-search-input" placeholder="🔍 Buscar exercício (ex: Agachamento)..." oninput="filterExercisesSelector(this.value)">
+            </div>
+
+            <div id="exercise-scroll-area" class="exercise-scroll-area">
+                <!-- Preenchido por renderExercisesGrid -->
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
+    renderExercisesGrid();
+}
+
+window.filterExercisesSelector = (query) => {
+    renderExercisesGrid(query.toLowerCase());
+};
+
+function renderExercisesGrid(filter = '') {
+    const scrollArea = document.getElementById('exercise-scroll-area');
+    if (!scrollArea) return;
+
+    const grouped = {};
+    exercisesLibrary.forEach(ex => {
+        if (filter && !ex.name.toLowerCase().includes(filter) && !ex.category.toLowerCase().includes(filter)) return;
+        if (!grouped[ex.category]) grouped[ex.category] = [];
+        grouped[ex.category].push(ex);
+    });
+
+    let html = '';
+    const sortedCategories = Object.keys(grouped).sort();
+
+    if (sortedCategories.length === 0) {
+        html = '<div class="empty-state-search">Nenhum exercício encontrado 😕</div>';
+    } else {
+        sortedCategories.forEach(category => {
+            const exercises = grouped[category];
+            html += `
+                <div class="category-group-selector">
+                    <div class="category-sticky-header">
+                        <span>${category}</span>
+                    </div>
+                    <div class="exercise-selector-grid">
+                        ${exercises.map(ex => `
+                            <div class="exercise-selector-item" onclick="selectExercise(${ex.id})">
+                                <div class="ex-selector-thumb-wrap">
+                                    <img src="${resolveImage(ex.image, ex.category)}" class="ex-selector-thumb" onerror="this.src='https://placehold.co/100x100/1a1a1a/ffffff?text=X'">
+                                </div>
+                                <div class="ex-selector-name"><strong>${ex.name}</strong></div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        });
+    }
+
+    scrollArea.innerHTML = html;
 }
 
 window.selectExercise = (id) => {
@@ -726,20 +755,156 @@ document.getElementById('btn-remove-challenge').onclick = async () => {
 // ────────────────────────────────────────
 window.copyWhatsAppLink = () => {
     if (!currentStudent || !currentStudent.access_token) {
-        return alert("Erro: O token deste aluno não foi encontrado. Atualize a página.");
+        console.error('Missing access_token for student:', currentStudent);
+        return alert("Erro: O token deste aluno não foi encontrado. Clique em outro aluno e volte aqui para atualizar.");
     }
     
-    const baseUrl = window.location.origin;
+    const port = window.location.port ? `:${window.location.port}` : '';
+    const protocol = window.location.protocol;
+    // Se estivermos em localhost, usamos o serverIP detectado para o link externo
+    const host = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? serverIP : window.location.hostname;
+    
+    const baseUrl = `${protocol}//${host}${port}`;
     const link = `${baseUrl}/aluno/${currentStudent.access_token}`;
-    const text = `Fala ${currentStudent.name.split(' ')[0]}!\n\nSeu treino está pronto. Acesse pelo link abaixo:\n\n🔗 ${link}`;
+    const text = `Fala ${currentStudent.name.split(' ')[0]}! 💪\n\nSeu treino está pronto. Acesse pelo link abaixo:\n\n🔗 ${link}`;
     
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
-            alert('✅ Link copiado para a área de transferência:\n\n' + link + '\n\nCole no WhatsApp do aluno.');
+            alert('✅ Link de ACESSO MÓVEL copiado!\n\nEnvie este link para o aluno pelo WhatsApp.\n\nLink: ' + link);
         }).catch(err => {
-            prompt('Copie o link manualmente:', link);
+            prompt('Copie o link manualmente para o WhatsApp:', link);
         });
     } else {
-        prompt('Copie o link manualmente:', link);
+        prompt('Copie o link manualmente para o WhatsApp:', link);
     }
 };
+
+// ────────────────────────────────────────
+// GESTÃO DE PERFIL DO PROFESSOR
+// ────────────────────────────────────────
+async function loadProfile() {
+    try {
+        const res = await fetch('/api/trainer/profile', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (res.ok) {
+            const profile = await res.json();
+            document.getElementById('prof-name').value = profile.name || '';
+            document.getElementById('prof-cref').value = profile.cref || '';
+            document.getElementById('prof-specialty').value = profile.specialty || '';
+            document.getElementById('prof-bio').value = profile.bio || '';
+            document.getElementById('prof-image').value = profile.image || '';
+            
+            if (profile.image) {
+                document.getElementById('prof-photo-preview').style.backgroundImage = `url(${profile.image})`;
+            }
+        }
+    } catch (e) {
+        console.error('Erro ao carregar perfil', e);
+    }
+}
+
+// Preview da imagem ao selecionar
+document.getElementById('prof-photo-input')?.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('prof-photo-preview').style.backgroundImage = `url(${e.target.result})`;
+        }
+        reader.readAsDataURL(file);
+    }
+});
+
+async function uploadImage() {
+    const input = document.getElementById('prof-photo-input');
+    if (!input || !input.files[0]) return null;
+
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+
+    try {
+        const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}` },
+            body: formData
+        });
+        if (res.ok) {
+            const data = await res.json();
+            return data.url;
+        }
+    } catch (e) {
+        console.error('Erro no upload', e);
+    }
+    return null;
+}
+
+window.saveProfile = async () => {
+    // Primeiro faz upload se houver novo arquivo
+    const uploadedUrl = await uploadImage();
+    const currentImageUrl = document.getElementById('prof-image').value;
+
+    const data = {
+        name: document.getElementById('prof-name').value,
+        cref: document.getElementById('prof-cref').value,
+        specialty: document.getElementById('prof-specialty').value,
+        bio: document.getElementById('prof-bio').value,
+        image: uploadedUrl || currentImageUrl
+    };
+
+    try {
+        const res = await fetch('/api/trainer/profile', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+            alert('Perfil atualizado com sucesso! 💪');
+        } else {
+            alert('Erro ao salvar perfil.');
+        }
+    } catch (e) {
+        alert('Erro de conexão.');
+    }
+};
+
+async function loadTrainerFeed() {
+    const container = document.getElementById('trainer-feed-container');
+    if (!container) return;
+    container.innerHTML = '<p class="subtitle" style="text-align:center;">Carregando feed...</p>';
+    
+    try {
+        const res = await fetch('/api/feed', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        const posts = await res.json();
+        
+        if (posts.length === 0) {
+            container.innerHTML = '<p class="subtitle" style="text-align:center; padding: 2rem;">Nenhum post recente dos seus alunos.</p>';
+            return;
+        }
+
+        container.innerHTML = posts.map(post => `
+            <div class="feed-card">
+                <div class="feed-card-header">
+                    <div class="feed-avatar">${post.student_name[0]}</div>
+                    <div class="feed-user-info">
+                        <h4>${post.student_name}</h4>
+                        <span class="feed-time">${formatTimeAgo(post.created_at)}</span>
+                    </div>
+                </div>
+                <img src="${post.image_url}" class="feed-img">
+                <div class="feed-footer">
+                    <p class="feed-caption"><strong>${post.student_name}</strong> ${post.caption}</p>
+                    <span class="expires-tag">Expira em 24h</span>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        container.innerHTML = '<p class="subtitle" style="text-align:center;">Erro ao carregar feed.</p>';
+    }
+}

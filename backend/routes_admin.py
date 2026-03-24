@@ -1,5 +1,8 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime
+import os
+import uuid
+from werkzeug.utils import secure_filename
 from .database import get_db_connection
 from .auth import require_auth
 
@@ -106,3 +109,63 @@ def recent_history():
     history = conn.execute('SELECT * FROM workout_history ORDER BY finished_at DESC LIMIT 20').fetchall()
     conn.close()
     return jsonify([dict(h) for h in history])
+
+@admin_bp.route('/api/trainer/profile', methods=['GET', 'POST'])
+@require_auth
+def handle_trainer_profile():
+    conn = get_db_connection()
+    # Para simplificar nesta versão, assumimos o primeiro trainer como o logado 
+    # ou usamos um ID fixo se o sistema ainda não tiver login multi-trainer.
+    trainer_id = 1 
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        conn.execute('''
+            UPDATE trainers SET name=?, cref=?, specialty=?, bio=?, image=? 
+            WHERE id=?
+        ''', (data['name'], data['cref'], data['specialty'], data.get('bio', ''), data.get('image', ''), trainer_id))
+        conn.commit()
+    
+    trainer = conn.execute('SELECT * FROM trainers WHERE id = ?', (trainer_id,)).fetchone()
+    conn.close()
+    
+    if not trainer:
+        return jsonify({"error": "Trainer não encontrado"}), 404
+        
+    return jsonify(dict(trainer))
+
+@admin_bp.route('/api/upload', methods=['POST'])
+@require_auth
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "Nenhum arquivo enviado"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Nome de arquivo vazio"}), 400
+    
+    if file:
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
+        unique_name = f"{uuid.uuid4().hex}.{ext}"
+        
+        upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'uploads')
+        os.makedirs(upload_path, exist_ok=True)
+        
+        full_path = os.path.join(upload_path, unique_name)
+        file.save(full_path)
+        
+        return jsonify({"url": f"/uploads/{unique_name}"})
+    
+    return jsonify({"error": "Falha no upload"}), 500
+@admin_bp.route('/api/info/ip')
+def get_local_ip():
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+    except:
+        ip = "127.0.0.1"
+    return jsonify({"ip": ip})

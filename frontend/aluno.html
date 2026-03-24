@@ -4,8 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meu Treino - App Vitin</title>
-    <link rel="stylesheet" href="/styles.css">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/styles.css?v=2.2">
+    <link rel="manifest" href="/manifest.json?v=2.2">
+    <script>
+        // FORÇAR LIMPEZA DE CACHE ANTIGO
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        // Limpar caches nomeados
+        if (window.caches) {
+            caches.keys().then(function(names) {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    </script>
     <meta name="theme-color" content="#0a0a0f">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
 </head>
@@ -24,7 +40,7 @@
         </div>
 
         <!-- Seletor de Aluno (Dinâmico) -->
-        <div id="student-selector" class="glass-card">
+        <div id="student-selector" class="glass-card hidden">
             <label class="section-title" style="margin-bottom: 0.5rem; display: block;">Quem é você?</label>
             <div id="student-btns" class="student-btns">
                 <!-- Preenchido dinamicamente -->
@@ -62,7 +78,69 @@
                 <button onclick="hideTrainerDetails()" class="btn-create-ex" style="margin-bottom: 1rem;">← Voltar</button>
                 <div id="selected-trainer-info"></div>
                 <div id="protocol-list" class="protocol-list"></div>
-            </section>
+        </div>
+
+        <!-- Conteúdo: Feed de Resultados (24h) -->
+        <div id="feed-content" class="hidden" style="margin-bottom: 5rem;">
+            <header class="feed-header">
+                <div>
+                    <h2 class="glow-text" style="font-size: 1.8rem;">Feed Vitin</h2>
+                    <p class="subtitle">Social Proof dos Guerreiros</p>
+                </div>
+                <button class="btn-add-post" onclick="showPostModal()">+</button>
+            </header>
+            
+            <div id="feed-list" class="feed-container">
+                <!-- Posts dinâmicos -->
+            </div>
+        </div>
+
+        <!-- Conteúdo: Histórico e Evolução (Teaser Premium) -->
+        <div id="stats-content" class="hidden" style="margin-bottom: 5rem; padding: 1.5rem;">
+            <header style="text-align: left; margin-bottom: 2rem;">
+                <h2 class="glow-text" style="font-size: 1.8rem;">Minha Evolução</h2>
+                <p class="subtitle">Acompanhe seu progresso real</p>
+            </header>
+
+            <!-- Evolução de Carga (Teaser) -->
+            <div class="premium-lock-container">
+                <div class="blurred-content glass-card" style="height: 200px; display: flex; align-items: center; justify-content: center;">
+                    <p>Gráfico de Carga Indisponível</p>
+                </div>
+                <div class="premium-overlay" onclick="showUpgradeModal('evolução de carga')">
+                    <span class="premium-tag">Premium</span>
+                    <span class="lock-icon">🔒</span>
+                    <p class="upgrade-teaser-text">Desbloqueie o gráfico de evolução de carga e veja sua força aumentar!</p>
+                </div>
+            </div>
+
+            <!-- Histórico de Treinos (Teaser) -->
+            <h3 class="section-title">Histórico Recente</h3>
+            <div class="premium-lock-container">
+                <div class="blurred-content">
+                    <div class="glass-card" style="margin-bottom: 0.8rem; padding: 1rem; background: rgba(255,255,255,0.05);">Treino de Peito - 22/03/24</div>
+                    <div class="glass-card" style="margin-bottom: 0.8rem; padding: 1rem; background: rgba(255,255,255,0.05);">Treino de Costas - 20/03/24</div>
+                    <div class="glass-card" style="margin-bottom: 0.8rem; padding: 1rem; background: rgba(255,255,255,0.05);">Treino de Pernas - 18/03/24</div>
+                </div>
+                <div class="premium-overlay" onclick="showUpgradeModal('histórico completo')">
+                    <span class="premium-tag">Premium</span>
+                    <span class="lock-icon">🔒</span>
+                    <p class="upgrade-teaser-text">Tenha acesso ao histórico completo de todos os seus treinos passados.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conteúdo: Meus Protocolos (Marketplace) -->
+        <div id="my-protocols-content" class="hidden" style="margin-bottom: 5rem; padding: 1.5rem;">
+            <header style="text-align: left; margin-bottom: 2rem;">
+                <h2 class="glow-text" style="font-size: 1.8rem;">Meus Protocolos</h2>
+                <p class="subtitle">Protocolos Elite que você adquiriu</p>
+            </header>
+            <div id="my-protocols-list" class="protocol-list">
+                <div class="empty-state" style="padding: 2rem;">
+                    <p class="subtitle">Você ainda não adquiriu nenhum protocolo elite.</p>
+                </div>
+            </div>
         </div>
 
         <!-- Estado: Sem treino -->
@@ -104,14 +182,52 @@
                 <span>🏋️</span>
                 Treino
             </button>
+            <button id="tab-stats" class="student-nav-btn" onclick="switchStudentTab('stats')">
+                <span>📈</span>
+                Evolução
+            </button>
+            <button id="tab-my-protocols" class="student-nav-btn" onclick="switchStudentTab('my-protocols')">
+                <span>📂</span>
+                Meus
+            </button>
             <button id="tab-discover" class="student-nav-btn" onclick="switchStudentTab('discover')">
                 <span>🔥</span>
                 Explorar
             </button>
+            <button id="tab-feed" class="student-nav-btn" onclick="switchStudentTab('feed')">
+                <span>📸</span>
+                Feed
+            </button>
         </nav>
     </div>
 
-    <script src="/muscle-icons.js"></script>
-    <script src="/aluno.js"></script>
+    <!-- MODAL UPGRADE PREMIUM -->
+    <div id="modal-upgrade" class="master-modal hidden">
+        <div class="modal-content" style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 1rem;">💎</div>
+            <h2 class="glow-text" style="margin-bottom: 0.5rem;">Seja Vitin Pro</h2>
+            <p id="upgrade-context" class="subtitle" style="margin-bottom: 2rem;">Você já treinou muito! Não perca sua evolução.</p>
+            
+            <div class="benefit-item"><span>✅</span> <div><b>Gráficos de Evolução</b>: Veja sua força aumentando dia após dia.</div></div>
+            <div class="benefit-item"><span>✅</span> <div><b>Deload Inteligente</b>: Ajuste automático baseado no seu sono.</div></div>
+            <div class="benefit-item"><span>✅</span> <div><b>Saúde Integrada</b>: Calorias do Google Fit / Apple Health.</div></div>
+            <div class="benefit-item"><span>✅</span> <div><b>Histórico Infinito</b>: Todo o seu legado salvo para sempre.</div></div>
+
+            <button class="btn-premium" onclick="upgradeToPremium()">Desbloquear meu progresso 🚀</button>
+            <button class="btn-cancel" onclick="closeUpgradeModal()" style="width: 100%; margin-top: 1rem; border: none;">Talvez mais tarde</button>
+        </div>
+    </div>
+
+    <script src="/muscle-icons.js?v=2.2"></script>
+    <script src="/aluno.js?v=2.2"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(reg => console.log('PWA: Aluno pronto!', reg.scope))
+                    .catch(err => console.log('PWA: Erro aluno', err));
+            });
+        }
+    </script>
 </body>
 </html>

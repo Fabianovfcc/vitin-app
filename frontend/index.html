@@ -4,10 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App Vitin - Dashboard Personal</title>
-    <link rel="stylesheet" href="/styles.css">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/styles.css?v=2.2">
+    <link rel="manifest" href="/manifest.json?v=2.2">
     <meta name="theme-color" content="#0a0a0f">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script>
+        // FORÇAR LIMPEZA DE CACHE ANTIGO
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        // Limpar caches nomeados
+        if (window.caches) {
+            caches.keys().then(function(names) {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    </script>
 </head>
 <body class="dark-theme">
     <div class="glass-container">
@@ -86,17 +102,33 @@
 
             <!-- Screen: Profile (Hidden) -->
             <section id="profile-view" class="hidden">
-                <h2 class="section-title">Seu Perfil</h2>
-                <div class="glass-card profile-info">
-                    <div class="stat-item">
-                        <span class="stat-label">Personal Trainer</span>
-                        <span class="stat-value">Prof. Victor</span>
+                <h2 class="section-title">Seu Perfil Profissional</h2>
+                <div class="glass-card profile-form">
+                    <div class="input-group">
+                        <label>Nome Completo</label>
+                        <input type="text" id="prof-name" placeholder="Nome do Professor">
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">CREF</span>
-                        <span class="stat-value">123456-G/SP</span>
+                    <div class="input-group" style="margin-top: 1rem;">
+                        <label>CREF</label>
+                        <input type="text" id="prof-cref" placeholder="000000-G/SP">
                     </div>
-                    <button class="btn-primary" style="margin-top: 2rem;">Editar Perfil</button>
+                    <div class="input-group" style="margin-top: 1rem;">
+                        <label>Especialidade</label>
+                        <input type="text" id="prof-specialty" placeholder="Ex: Hipertrofia e Emagrecimento">
+                    </div>
+                    <div class="input-group" style="margin-top: 1rem;">
+                        <label>Bio / Descrição</label>
+                        <textarea id="prof-bio" rows="3" placeholder="Conte um pouco sobre sua formação..."></textarea>
+                    </div>
+                    <div class="input-group" style="margin-top: 1rem;">
+                        <label>Foto de Perfil</label>
+                        <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
+                            <input type="file" id="prof-photo-input" accept="image/*" style="flex: 1; font-size: 0.8rem;">
+                            <input type="hidden" id="prof-image">
+                            <div id="prof-photo-preview" class="avatar-preview"></div>
+                        </div>
+                    </div>
+                    <button class="btn-success" style="margin-top: 2rem; width: 100%;" onclick="saveProfile()">Salvar Alterações</button>
                 </div>
             </section>
 
@@ -162,18 +194,29 @@
                 <button id="add-exercise-btn" class="btn-primary glow-border">+ Adicionar Exercício</button>
                 <button id="save-workout-btn" class="btn-success">Salvar Plano Semanal</button>
             </section>
+            
+            <!-- Screen: Feed (Hidden) -->
+            <section id="feed-view" class="hidden">
+                <div class="feed-header">
+                    <h2 class="section-title">Feed dos Alunos</h2>
+                </div>
+                <div id="trainer-feed-container" class="feed-container">
+                    <!-- Posts carregados -->
+                </div>
+            </section>
         </main>
 
         <nav class="bottom-nav">
             <button id="nav-students" class="nav-btn active">Alunos</button>
             <button id="nav-exercises" class="nav-btn">Exercícios</button>
             <button id="nav-challenges" class="nav-btn">Desafios</button>
+            <button id="nav-feed" class="nav-btn">Feed</button>
             <button id="nav-profile" class="nav-btn">Perfil</button>
         </nav>
     </div>
 
-    <script src="/muscle-icons.js"></script>
-    <script src="/app.js"></script>
+    <script src="/muscle-icons.js?v=2.2"></script>
+    <script src="/app.js?v=2.2"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
