@@ -24,6 +24,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await initStudentSelector();
         return;
     }
+
+    // Persistir token para o PWA (Add to Home Screen)
+    localStorage.setItem('vitin_last_student_token', token);
+    console.log("Token persistido para acesso via atalho:", token);
     
     // Navegação por abas
     window.switchStudentTab = (tab) => {

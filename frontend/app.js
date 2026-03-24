@@ -1,27 +1,74 @@
-document.addEventListener('DOMContentLoaded', () => {
-    fetchStudents();
-    setupEventListeners();
-    pollNotifications();
-    setInterval(pollNotifications, 15000); // Verifica a cada 15s
-});
-
+let adminToken = localStorage.getItem('adminToken') || '';
+let serverIP = window.location.hostname; // Fallback
 let currentStudent = null;
 let workoutExercises = [];
 let exercisesLibrary = [];
 let currentDay = 'seg';
-let adminToken = localStorage.getItem('adminToken') || '';
-let serverIP = window.location.hostname; // Fallback
 
-// Buscar IP real do servidor para links de WhatsApp
-fetch('/api/info/ip').then(r => r.json()).then(data => {
-    if (data.ip && data.ip !== '127.0.0.1') serverIP = data.ip;
-    console.log('Server Local IP for mobile access:', serverIP);
+document.addEventListener('DOMContentLoaded', () => {
+    checkInitialAuth();
+    setupEventListeners();
+    pollNotifications();
+    setInterval(pollNotifications, 15000);
+
+    // Buscar IP real do servidor para links de WhatsApp
+    fetch('/api/info/ip').then(r => r.json()).then(data => {
+        if (data.ip && data.ip !== '127.0.0.1') serverIP = data.ip;
+        console.log('Server Local IP for mobile access:', serverIP);
+    });
 });
 
-if (!adminToken && window.location.pathname === '/') {
-    adminToken = prompt('Digite a senha de acesso do Professor:');
-    if (adminToken) localStorage.setItem('adminToken', adminToken);
+// ────────────────────────────────────────
+// AUTENTICAÇÃO E LOGIN UNIFICADO
+// ────────────────────────────────────────
+window.switchLoginTab = (tab) => {
+    document.getElementById('tab-aluno').classList.toggle('active', tab === 'aluno');
+    document.getElementById('tab-prof').classList.toggle('active', tab === 'prof');
+    document.getElementById('form-aluno').classList.toggle('hidden', tab !== 'aluno');
+    document.getElementById('form-prof').classList.toggle('hidden', tab !== 'prof');
+};
+
+async function checkInitialAuth() {
+    if (adminToken) {
+        // Tenta validar o token ou apenas assume sucesso em debug
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('main-app-container').classList.remove('hidden');
+        fetchStudents();
+    }
 }
+
+window.login = () => {
+    const pass = document.getElementById('admin-password').value;
+    if (pass) {
+        localStorage.setItem('adminToken', pass);
+        adminToken = pass;
+        location.reload(); // Recarrega para aplicar o token em todas as chamadas
+    } else {
+        alert('Digite a senha!');
+    }
+};
+
+window.loginAsStudent = async () => {
+    const whatsapp = document.getElementById('student-whatsapp-login').value.replace(/\D/g, '');
+    if (!whatsapp) {
+        alert('Digite seu WhatsApp!');
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/students/by-whatsapp/${whatsapp}`);
+        if (res.ok) {
+            const student = await res.json();
+            // Salva para o PWA e redireciona
+            localStorage.setItem('vitin_last_student_token', student.access_token);
+            window.location.href = `/aluno/${student.access_token}`;
+        } else {
+            alert('Aluno não encontrado. Verifique o número ou fale com seu professor.');
+        }
+    } catch (e) {
+        alert('Erro ao conectar ao servidor.');
+    }
+};
 
 let weeklyWorkouts = {
     seg: [], ter: [], qua: [], qui: [], sex: [], sab: [], dom: []

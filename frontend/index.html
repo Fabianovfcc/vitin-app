@@ -4,8 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>App Vitin - Dashboard Personal</title>
+    <script>
+        // REDIRECIONAMENTO INTELIGENTE PWA (Add to Home Screen)
+        // Se o app for aberto via ícone e houver um token de aluno salvo, vai direto para o treino.
+        (function() {
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            const lastStudentToken = localStorage.getItem('vitin_last_student_token');
+            const isAdmin = localStorage.getItem('adminToken');
+            
+            // Só redireciona se for PWA, tiver token de aluno e NÃO for o professor logado
+            if (isStandalone && lastStudentToken && !isAdmin) {
+                console.log("Detectado PWA de Aluno. Redirecionando para o treino...");
+                window.location.href = '/aluno/' + lastStudentToken;
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="/styles.css?v=2.2">
-    <link rel="manifest" href="/manifest.json?v=2.2">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0a0a0f">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script>
@@ -24,9 +39,59 @@
             });
         }
     </script>
+    <style>
+        /* Estilos para o Login Unificado */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at top right, #1a1a2e, #0a0a0f);
+            display: flex; align-items: center; justify-content: center; z-index: 10000;
+        }
+        .login-card { max-width: 400px; width: 90%; text-align: center; border: 1px solid rgba(139, 92, 246, 0.3); }
+        .login-tabs { display: flex; gap: 10px; margin: 2rem 0; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 12px; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: var(--text-dim); cursor: pointer; border-radius: 8px; font-weight: 600; transition: 0.3s; }
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); }
+        .login-form { text-align: left; }
+        .full-width { width: 100%; margin-top: 1.5rem; }
+        .login-help { font-size: 0.8rem; color: var(--text-dim); margin-top: 1rem; text-align: center; }
+        .hidden { display: none !important; }
+    </style>
 </head>
 <body class="dark-theme">
-    <div class="glass-container">
+    <!-- TELA DE LOGIN UNIFICADA -->
+    <div id="login-screen">
+        <div class="glass-card login-card animate-fade-in">
+            <h1 class="premium-title" style="font-size: 2rem; margin-bottom: 0.5rem;">Vitin App Elite</h1>
+            <p class="premium-subtitle">Alta Performance em Gestão de Treinos</p>
+            
+            <div class="login-tabs">
+                <button id="tab-aluno" class="tab-btn active" onclick="switchLoginTab('aluno')">Sou Aluno</button>
+                <button id="tab-prof" class="tab-btn" onclick="switchLoginTab('prof')">Sou Professor</button>
+            </div>
+
+            <!-- Formulário Aluno -->
+            <div id="form-aluno" class="login-form">
+                <div class="input-group">
+                    <label>Seu WhatsApp</label>
+                    <input type="tel" id="student-whatsapp-login" placeholder="(00) 00000-0000" class="premium-input">
+                </div>
+                <button onclick="loginAsStudent()" class="btn-primary full-width">Acessar Meu Treino ⚡</button>
+                <p class="login-help">Digite seu WhatsApp cadastrado pelo seu personal.</p>
+            </div>
+
+            <!-- Formulário Professor -->
+            <div id="form-prof" class="login-form hidden">
+                <div class="input-group">
+                    <label>Senha do Professor</label>
+                    <input type="password" id="admin-password" placeholder="Sua senha secreta" class="premium-input">
+                </div>
+                <button onclick="login()" class="btn-primary full-width">Acessar Painel Admin 🚀</button>
+                <p class="login-help">Acesso restrito para treinadores cadastrados.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- APP PRINCIPAL (Oculto até login do professor) -->
+    <div id="main-app-container" class="glass-container hidden">
         <header style="display: flex; align-items: center; justify-content: space-between;">
             <div>
                 <h1 class="glow-text">App Vitin</h1>
@@ -213,7 +278,7 @@
             <button id="nav-feed" class="nav-btn">Feed</button>
             <button id="nav-profile" class="nav-btn">Perfil</button>
         </nav>
-    </div>
+    </div> <!-- /main-app-container -->
 
     <script src="/muscle-icons.js?v=2.2"></script>
     <script src="/app.js?v=2.2"></script>
