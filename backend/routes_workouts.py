@@ -7,34 +7,56 @@ workouts_bp = Blueprint('workouts', __name__)
 
 @workouts_bp.route('/api/workouts', methods=['POST'])
 def save_workout():
-    data = request.get_json()
-    student_id = data.get('student_id')
-    student_name = data.get('student_name', '')
-    workout_json = data  # Supabase aceita JSONB diretamente
-    date = data.get('date')
-    now = datetime.now().isoformat()
-    
-    # Upsert: insere ou atualiza se já existir
-    supabase.table('workouts').upsert({
-        'student_id': student_id,
-        'workout_json': workout_json,
-        'date': date,
-        'updated_at': now
-    }).execute()
-    
-    supabase.table('students').update({'last_workout': date}).eq('id', student_id).execute()
-    supabase.table('workout_progress').delete().eq('student_id', student_id).execute()
+    try:
+        data = request.get_json()
+        student_id_raw = data.get('student_id')
+        if not student_id_raw:
+            return jsonify({"error": "student_id missing"}), 400
+            
+        student_id = int(student_id_raw)
+        student_name = data.get('student_name', '')
+        workout_json = data
+        date = data.get('date')
+        now = datetime.now().isoformat()
+        
+        print(f"DEBUG: Salvando treino para aluno {student_id} ({student_name})")
+        
+        # Buscar se já existe para fazer update manual se o upsert falhar por falta de constraint
+        existing = supabase.table('workouts').select('id').eq('student_id', student_id).execute()
+        
+        if existing.data:
+            row_id = existing.data[0]['id']
+            supabase.table('workouts').update({
+                'workout_json': workout_json,
+                'date': date,
+                'updated_at': now
+            }).eq('id', row_id).execute()
+        else:
+            supabase.table('workouts').insert({
+                'student_id': student_id,
+                'workout_json': workout_json,
+                'date': date,
+                'updated_at': now
+            }).execute()
+        
+        supabase.table('students').update({'last_workout': date}).eq('id', student_id).execute()
+        supabase.table('workout_progress').delete().eq('student_id', student_id).execute()
 
-    supabase.table('notifications').insert({
-        'target_role': 'aluno',
-        'student_id': student_id,
-        'student_name': student_name,
-        'message': 'Seu Personal atualizou sua ficha de treino!',
-        'type': 'workout_updated',
-        'created_at': now
-    }).execute()
+        supabase.table('notifications').insert({
+            'target_role': 'aluno',
+            'student_id': student_id,
+            'student_name': student_name,
+            'message': 'Seu Personal atualizou sua ficha de treino!',
+            'type': 'workout_updated',
+            'created_at': now
+        }).execute()
 
-    return jsonify({"status": "success", "message": "Treino enviado com sucesso!"}), 201
+        return jsonify({"status": "success", "message": "Treino enviado com sucesso!"}), 201
+    except Exception as e:
+        print(f"ERRO CRÍTICO ao salvar treino: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @workouts_bp.route('/api/workouts/history')
 def get_workout_history():
