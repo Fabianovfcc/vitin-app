@@ -1,34 +1,39 @@
 from flask import Blueprint, jsonify, request
 import json
 from datetime import datetime
-from .database import get_db_connection
-from .auth import require_auth
+from .supabase_client import supabase
 
 workouts_bp = Blueprint('workouts', __name__)
 
 @workouts_bp.route('/api/workouts', methods=['POST'])
-@require_auth
 def save_workout():
     data = request.get_json()
     student_id = data.get('student_id')
     student_name = data.get('student_name', '')
-    workout_json = json.dumps(data)
+    workout_json = data  # Supabase aceita JSONB diretamente
     date = data.get('date')
     now = datetime.now().isoformat()
     
-    conn = get_db_connection()
-    conn.execute('INSERT OR REPLACE INTO workouts (student_id, workout_json, date, updated_at) VALUES (?, ?, ?, ?)',
-                 (student_id, workout_json, date, now))
-    conn.execute('UPDATE students SET last_workout = ? WHERE id = ?', (date, student_id))
-    conn.execute('DELETE FROM workout_progress WHERE student_id = ?', (student_id,))
+    # Upsert: insere ou atualiza se já existir
+    supabase.table('workouts').upsert({
+        'student_id': student_id,
+        'workout_json': workout_json,
+        'date': date,
+        'updated_at': now
+    }).execute()
+    
+    supabase.table('students').update({'last_workout': date}).eq('id', student_id).execute()
+    supabase.table('workout_progress').delete().eq('student_id', student_id).execute()
 
-    conn.execute('''INSERT INTO notifications (target_role, student_id, student_name, message, type, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?)''',
-                 ('aluno', student_id, student_name, 
-                  'Seu Personal atualizou sua ficha de treino!', 'workout_updated', now))
+    supabase.table('notifications').insert({
+        'target_role': 'aluno',
+        'student_id': student_id,
+        'student_name': student_name,
+        'message': 'Seu Personal atualizou sua ficha de treino!',
+        'type': 'workout_updated',
+        'created_at': now
+    }).execute()
 
-    conn.commit()
-    conn.close()
     return jsonify({"status": "success", "message": "Treino enviado com sucesso!"}), 201
 
 @workouts_bp.route('/api/workouts/history')
@@ -37,44 +42,49 @@ def get_workout_history():
     if not student_id:
         return jsonify({"error": "student_id missing"}), 400
     
-    conn = get_db_connection()
-    history = conn.execute('''
-        SELECT id, student_id, student_name, day, total_sets, completed_sets, cardio, 
-               finished_at as date, finished_at as created_at 
-        FROM workout_history 
-        WHERE student_id = ? 
-        ORDER BY finished_at DESC
-    ''', (int(student_id),)).fetchall()
-    conn.close()
-    return jsonify([dict(h) for h in history])
+    result = supabase.table('workout_history').select('*').eq(
+        'student_id', int(student_id)
+    ).order('finished_at', desc=True).execute()
+    
+    # Mapear campos para compatibilidade com frontend
+    history = []
+    for h in result.data:
+        h['date'] = h.get('finished_at')
+        h['created_at'] = h.get('finished_at')
+        history.append(h)
+    return jsonify(history)
 
 @workouts_bp.route('/api/workouts/<int:student_id>')
 def get_workout(student_id):
-    conn = get_db_connection()
-    workout = conn.execute('SELECT * FROM workouts WHERE student_id = ?', (student_id,)).fetchone()
-    conn.close()
-    if workout:
-        data = json.loads(workout['workout_json'])
-        data['updated_at'] = workout['updated_at']
+    result = supabase.table('workouts').select('*').eq('student_id', student_id).execute()
+    if result.data:
+        row = result.data[0]
+        data = row['workout_json'] if isinstance(row['workout_json'], dict) else json.loads(row['workout_json'])
+        data['updated_at'] = row['updated_at']
         return jsonify(data)
     return jsonify({"error": "Nenhum treino encontrado"}), 404
 
 @workouts_bp.route('/api/progress/<int:student_id>/<day>', methods=['GET', 'POST'])
 def handle_progress(student_id, day):
-    conn = get_db_connection()
     now = datetime.now().isoformat()
     if request.method == 'POST':
         data = request.get_json()
-        completed_json = json.dumps(data.get('completedSets', {}))
-        conn.execute('INSERT OR REPLACE INTO workout_progress (student_id, day, completed_sets_json, updated_at) VALUES (?, ?, ?, ?)',
-                     (student_id, day, completed_json, now))
-        conn.commit()
-        conn.close()
+        completed_json = data.get('completedSets', {})
+        supabase.table('workout_progress').upsert({
+            'student_id': student_id,
+            'day': day,
+            'completed_sets_json': completed_json,
+            'updated_at': now
+        }).execute()
         return jsonify({"status": "saved"})
     
-    progress = conn.execute('SELECT * FROM workout_progress WHERE student_id = ? AND day = ?', (student_id, day)).fetchone()
-    conn.close()
-    return jsonify(json.loads(progress['completed_sets_json'])) if progress else jsonify({})
+    result = supabase.table('workout_progress').select('*').eq(
+        'student_id', student_id
+    ).eq('day', day).execute()
+    
+    if result.data:
+        return jsonify(result.data[0]['completed_sets_json'])
+    return jsonify({})
 
 @workouts_bp.route('/api/workouts/finish', methods=['POST'])
 def finish_workout():
@@ -85,33 +95,33 @@ def finish_workout():
     total_sets = data.get('total_sets', 0)
     completed_sets = data.get('completed_sets', 0)
     cardio = data.get('cardio', '')
+    completed_sets_json = data.get('completed_sets_json', {})
+    calories = data.get('calories', completed_sets * 5)
     now = datetime.now().isoformat()
     
-    conn = get_db_connection()
-    conn.execute('INSERT INTO workout_history (student_id, student_name, day, total_sets, completed_sets, cardio, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                 (student_id, student_name, day, total_sets, completed_sets, cardio, now))
+    supabase.table('workout_history').insert({
+        'student_id': student_id,
+        'student_name': student_name,
+        'day': day,
+        'total_sets': total_sets,
+        'completed_sets': completed_sets,
+        'cardio': cardio,
+        'completed_sets_json': completed_sets_json,
+        'calories': calories,
+        'finished_at': now
+    }).execute()
     
     pct = round((completed_sets / total_sets * 100)) if total_sets > 0 else 0
     msg = f'{student_name} finalizou o treino de {day.upper()} ({pct}% completo)'
     if cardio: msg += f' + Cardio: {cardio}'
     
-    conn.execute('INSERT INTO notifications (target_role, student_id, student_name, message, type, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-                 ('professor', student_id, student_name, msg, 'workout_finished', now))
+    supabase.table('notifications').insert({
+        'target_role': 'professor',
+        'student_id': student_id,
+        'student_name': student_name,
+        'message': msg,
+        'type': 'workout_finished',
+        'created_at': now
+    }).execute()
     
-    today = datetime.now().strftime('%d/%m/%Y')
-    conn.execute('UPDATE students SET last_workout = ?, status = ? WHERE id = ?', (today, 'active', student_id))
-    conn.commit()
-    conn.close()
-    return jsonify({"status": "success"})
-
-@workouts_bp.route('/api/workouts/students/all')
-def get_all_students_simple():
-    conn = get_db_connection()
-    students = conn.execute('''
-        SELECT s.id, s.name, s.access_token as token, t.name as trainer_name 
-        FROM students s
-        LEFT JOIN trainers t ON s.trainer_id = t.id
-    ''').fetchall()
-    conn.close()
-    return jsonify([dict(s) for s in students])
-
+    return jsonify({"status": "success", "message": "Treino finalizado!"}), 201

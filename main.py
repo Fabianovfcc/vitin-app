@@ -2,8 +2,7 @@ import os
 from flask import Flask, send_from_directory
 from dotenv import load_dotenv
 
-# Importar Blueprints e Funções de Núcleo
-from backend.database import init_db
+# Importar Blueprints
 from backend.routes_students import students_bp
 from backend.routes_workouts import workouts_bp
 from backend.routes_admin import admin_bp
@@ -12,8 +11,9 @@ from backend.routes_feed import feed_bp
 from backend.routes_super_admin import super_admin_bp
 
 load_dotenv()
+# Carregar .env do backend também
+load_dotenv(os.path.join(os.path.dirname(__file__), 'backend', '.env'))
 
-# O static_folder agora é 'frontend' pois o main.py está na raiz do projeto
 app = Flask(__name__, static_folder='frontend')
 
 # Registrar Blueprints
@@ -47,9 +47,10 @@ def static_files(path):
 # INICIALIZAÇÃO
 # ────────────────────────────────────────
 if __name__ == '__main__':
-    # Inicializar Banco de Dados
-    init_db()
+    # Seed Supabase (apenas popula se tabelas estiverem vazias)
+    from backend.seed_supabase import seed
+    seed()
     
     port = int(os.environ.get("PORT", 5000))
-    print(f"App Vitin 2.0 Iniciando na porta {port}...")
+    print(f"App Vitin 2.0 (Supabase) Iniciando na porta {port}...")
     app.run(host="0.0.0.0", port=port)

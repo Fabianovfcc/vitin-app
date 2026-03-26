@@ -1,11 +1,9 @@
 from flask import Blueprint, jsonify, request
 import os
-from .database import get_db_connection
-from .auth import require_auth
+from .supabase_client import supabase
 
 super_admin_bp = Blueprint('super_admin', __name__)
 
-# O dono do app usa a mesma senha de admin ou uma MASTER_PASSWORD
 MASTER_PASSWORD = os.getenv("MASTER_PASSWORD", "master_vitin_2024")
 
 def require_super_auth(f):
@@ -19,188 +17,161 @@ def require_super_auth(f):
 @super_admin_bp.route('/stats')
 @require_super_auth
 def global_stats():
-    conn = get_db_connection()
-    
-    # Estatísticas Avançadas
+    total_trainers = supabase.table('trainers').select('id', count='exact').execute().count or 0
+    total_students = supabase.table('students').select('id', count='exact').execute().count or 0
+    total_gyms = supabase.table('gyms').select('id', count='exact').execute().count or 0
+    active_subs = supabase.table('students').select('id', count='exact').eq('plan_type', 'premium').execute().count or 0
+    recent = supabase.table('workout_history').select('id', count='exact').execute().count or 0
+
+    churn_count = 0  # Supabase date filtering will be added in V2
     stats = {
-        "total_trainers": conn.execute('SELECT COUNT(*) FROM trainers').fetchone()[0],
-        "total_students": conn.execute('SELECT COUNT(*) FROM students').fetchone()[0],
-        "total_gyms": conn.execute('SELECT COUNT(*) FROM gyms').fetchone()[0],
-        "active_subscriptions": conn.execute("SELECT COUNT(*) FROM students WHERE plan_type = 'premium'").fetchone()[0],
-        "recent_activity": conn.execute("SELECT COUNT(*) FROM workout_history WHERE finished_at > date('now', '-7 days')").fetchone()[0]
+        "total_trainers": total_trainers,
+        "total_students": total_students,
+        "total_gyms": total_gyms,
+        "active_subscriptions": active_subs,
+        "recent_activity": recent,
+        "churn_rate": 0
     }
-    
-    # Churn Rate Estimado (alunos sem treino há 10 dias)
-    churn_count = conn.execute("SELECT COUNT(*) FROM students WHERE last_workout < date('now', '-10 days')").fetchone()[0]
-    stats["churn_rate"] = round((churn_count / stats["total_students"] * 100), 1) if stats["total_students"] > 0 else 0
-    
-    conn.close()
     return jsonify(stats)
 
 @super_admin_bp.route('/gyms', methods=['GET', 'POST'])
 @require_super_auth
 def manage_gyms():
-    conn = get_db_connection()
     if request.method == 'POST':
         data = request.get_json()
         from datetime import datetime
-        cursor = conn.execute('INSERT INTO gyms (name, owner_name, plan, created_at) VALUES (?, ?, ?, ?)',
-                     (data['name'], data['owner_name'], data.get('plan', 'premium'), datetime.now().isoformat()))
-        new_id = cursor.lastrowid
-        conn.commit()
+        result = supabase.table('gyms').insert({
+            'name': data['name'], 'owner_name': data['owner_name'],
+            'plan': data.get('plan', 'premium'), 'created_at': datetime.now().isoformat()
+        }).execute()
+        new_id = result.data[0]['id'] if result.data else None
         return jsonify({"status": "success", "id": new_id})
     
-    gyms = conn.execute('SELECT * FROM gyms').fetchall()
-    conn.close()
-    return jsonify([dict(g) for g in gyms])
+    result = supabase.table('gyms').select('*').execute()
+    return jsonify(result.data)
 
 @super_admin_bp.route('/gyms/<int:gym_id>', methods=['PUT', 'DELETE'])
 @require_super_auth
 def manage_gym_detail(gym_id):
-    conn = get_db_connection()
     if request.method == 'DELETE':
-        # Antes de excluir, desassociar professores
-        conn.execute('UPDATE trainers SET gym_id = NULL WHERE gym_id = ?', (gym_id,))
-        conn.execute('DELETE FROM gyms WHERE id = ?', (gym_id,))
-        conn.commit()
-        conn.close()
+        supabase.table('trainers').update({'gym_id': None}).eq('gym_id', gym_id).execute()
+        supabase.table('gyms').delete().eq('id', gym_id).execute()
         return jsonify({"status": "success"})
     
     data = request.json
-    conn.execute('UPDATE gyms SET name = ?, owner_name = ?, plan = ? WHERE id = ?',
-                 (data['name'], data['owner_name'], data.get('plan'), gym_id))
-    conn.commit()
-    conn.close()
+    supabase.table('gyms').update({
+        'name': data['name'], 'owner_name': data['owner_name'], 'plan': data.get('plan')
+    }).eq('id', gym_id).execute()
     return jsonify({"status": "success"})
 
 @super_admin_bp.route('/trainers-detailed')
 @require_super_auth
 def trainers_detailed():
-    conn = get_db_connection()
-    # Pega professores e conta quantos alunos cada um tem
-    query = '''
-        SELECT t.*, 
-               (SELECT COUNT(*) FROM students s WHERE s.trainer_id = t.id) as student_count,
-               g.name as gym_name
-        FROM trainers t
-        LEFT JOIN gyms g ON t.gym_id = g.id
-    '''
-    trainers = conn.execute(query).fetchall()
-    conn.close()
-    return jsonify([dict(t) for t in trainers])
+    result = supabase.table('trainers').select('*, gyms(name)').execute()
+    trainers = []
+    for t in result.data:
+        t_dict = dict(t)
+        # Conta alunos deste treinador
+        count_result = supabase.table('students').select('id', count='exact').eq('trainer_id', t['id']).execute()
+        t_dict['student_count'] = count_result.count or 0
+        t_dict['gym_name'] = t.get('gyms', {}).get('name') if t.get('gyms') else None
+        if 'gyms' in t_dict:
+            del t_dict['gyms']
+        trainers.append(t_dict)
+    return jsonify(trainers)
 
 @super_admin_bp.route('/trainers/<int:trainer_id>', methods=['DELETE'])
 @require_super_auth
 def delete_trainer(trainer_id):
-    conn = get_db_connection()
-    conn.execute('UPDATE students SET trainer_id = NULL WHERE trainer_id = ?', (trainer_id,))
-    conn.execute('DELETE FROM trainers WHERE id = ?', (trainer_id,))
-    conn.commit()
-    conn.close()
+    supabase.table('students').update({'trainer_id': None}).eq('trainer_id', trainer_id).execute()
+    supabase.table('trainers').delete().eq('id', trainer_id).execute()
     return jsonify({"status": "success", "message": "Professor excluído."})
 
 @super_admin_bp.route('/trainer-students/<int:trainer_id>')
 @require_super_auth
 def get_trainer_students(trainer_id):
-    conn = get_db_connection()
-    students = conn.execute('SELECT id, name, whatsapp, status FROM students WHERE trainer_id = ?', (trainer_id,)).fetchall()
-    conn.close()
-    return jsonify([dict(s) for s in students])
+    result = supabase.table('students').select('id, name, whatsapp, status').eq('trainer_id', trainer_id).execute()
+    return jsonify(result.data)
 
 @super_admin_bp.route('/trainers', methods=['POST'])
 @require_super_auth
 def create_trainer():
     data = request.json
     name = data.get('name')
-    gym_id = data.get('gym_id')
-    password = data.get('password', '123456') # Senha padrão
+    if not name:
+        return jsonify({"error": "Nome obrigatório"}), 400
     
-    if not name: return jsonify({"error": "Nome obrigatório"}), 400
-    
-    conn = get_db_connection()
     try:
-        cur = conn.execute('INSERT INTO trainers (name, password, gym_id, whatsapp, status) VALUES (?, ?, ?, ?, ?)', 
-                           (name, password, gym_id, data.get('whatsapp'), 'active'))
-        new_id = cur.lastrowid
-        conn.commit()
+        result = supabase.table('trainers').insert({
+            'name': name, 'password': data.get('password', '123456'),
+            'gym_id': data.get('gym_id'), 'whatsapp': data.get('whatsapp'), 'status': 'active'
+        }).execute()
+        new_id = result.data[0]['id'] if result.data else None
         return jsonify({"status": "success", "id": new_id})
     except Exception as e:
         print(f"ERRO AO CRIAR PROFESSOR: {e}")
         return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
 
 @super_admin_bp.route('/trainers/<int:trainer_id>', methods=['PUT'])
 @require_super_auth
 def update_trainer(trainer_id):
     data = request.json
-    conn = get_db_connection()
-    conn.execute('UPDATE trainers SET name = ?, gym_id = ?, whatsapp = ? WHERE id = ?', 
-                 (data.get('name'), data.get('gym_id'), data.get('whatsapp'), trainer_id))
-    conn.commit()
-    conn.close()
+    supabase.table('trainers').update({
+        'name': data.get('name'), 'gym_id': data.get('gym_id'), 'whatsapp': data.get('whatsapp')
+    }).eq('id', trainer_id).execute()
     return jsonify({"status": "success"})
 
 @super_admin_bp.route('/students-all')
 @require_super_auth
 def get_all_students_global():
-    conn = get_db_connection()
-    students = conn.execute('''
-        SELECT s.*, t.name as trainer_name 
-        FROM students s
-        LEFT JOIN trainers t ON s.trainer_id = t.id
-    ''').fetchall()
-    conn.close()
-    return jsonify([dict(s) for s in students])
+    result = supabase.table('students').select('*, trainers(name)').execute()
+    students = []
+    for s in result.data:
+        s_dict = dict(s)
+        s_dict['trainer_name'] = s.get('trainers', {}).get('name') if s.get('trainers') else None
+        if 'trainers' in s_dict:
+            del s_dict['trainers']
+        students.append(s_dict)
+    return jsonify(students)
 
 @super_admin_bp.route('/students/<int:student_id>', methods=['DELETE'])
 @require_super_auth
 def delete_student_global(student_id):
-    conn = get_db_connection()
-    conn.execute('DELETE FROM students WHERE id = ?', (student_id,))
-    conn.commit()
-    conn.close()
+    supabase.table('students').delete().eq('id', student_id).execute()
     return jsonify({"status": "success"})
 
 @super_admin_bp.route('/students', methods=['POST', 'PUT'])
 @require_super_auth
 def manage_students_global():
-    conn = get_db_connection()
     data = request.json
     try:
         if request.method == 'POST':
             from datetime import datetime
-            cursor = conn.execute('''
-                INSERT INTO students (name, whatsapp, trainer_id, age, weight, goal, status, created_at, plan_type) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (data['name'], data['whatsapp'], data.get('trainer_id'), data.get('age'), 
-                  data.get('weight'), data.get('goal'), 'Ativo', datetime.now().isoformat(), 'free'))
-            new_id = cursor.lastrowid
-            conn.commit()
+            result = supabase.table('students').insert({
+                'name': data['name'], 'whatsapp': data.get('whatsapp'),
+                'trainer_id': data.get('trainer_id'), 'age': data.get('age'),
+                'weight': data.get('weight'), 'goal': data.get('goal'),
+                'status': 'Ativo', 'created_at': datetime.now().isoformat(), 'plan_type': 'free'
+            }).execute()
+            new_id = result.data[0]['id'] if result.data else None
             return jsonify({"status": "success", "id": new_id})
         else:
-            cur = conn.execute('''
-                UPDATE students SET name=?, whatsapp=?, trainer_id=?, age=?, weight=?, goal=?, status=?
-                WHERE id=?
-            ''', (data['name'], data['whatsapp'], data.get('trainer_id'), data.get('age'), 
-                  data.get('weight'), data.get('goal'), data.get('status'), data['id']))
-            conn.commit()
-            print(f"ALUNO ATUALIZADO: ID {data['id']}, Linhas afetadas: {cur.rowcount}")
-            return jsonify({"status": "success", "affected": cur.rowcount})
+            supabase.table('students').update({
+                'name': data['name'], 'whatsapp': data.get('whatsapp'),
+                'trainer_id': data.get('trainer_id'), 'age': data.get('age'),
+                'weight': data.get('weight'), 'goal': data.get('goal'),
+                'status': data.get('status')
+            }).eq('id', data['id']).execute()
+            return jsonify({"status": "success"})
     except Exception as e:
         print(f"ERRO AO GERIR ALUNO GLOBAL: {e}")
         return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
 
 @super_admin_bp.route('/billing-data')
 @require_super_auth
 def get_billing_data():
-    # Simulação de dados financeiros reais baseados na DB
-    conn = get_db_connection()
-    total_students = conn.execute('SELECT COUNT(*) FROM students').fetchone()[0]
-    active_gyms = conn.execute('SELECT COUNT(*) FROM gyms').fetchone()[0]
-    conn.close()
+    total_students = supabase.table('students').select('id', count='exact').execute().count or 0
+    active_gyms = supabase.table('gyms').select('id', count='exact').execute().count or 0
     
     return jsonify({
         "mrr": total_students * 29.90,
@@ -214,128 +185,126 @@ def get_billing_data():
 @super_admin_bp.route('/marketplace-data')
 @require_super_auth
 def get_marketplace_data():
-    conn = get_db_connection()
+    total_rev_result = supabase.table('marketplace_sales').select('price').execute()
+    total_revenue = sum(float(s['price']) for s in total_rev_result.data) if total_rev_result.data else 0
+    total_sales = len(total_rev_result.data)
     
-    # KPIs do Marketplace
+    # Top trainer
+    top_trainer = "Sem Vendas"
+    if total_rev_result.data:
+        from collections import Counter
+        trainer_counts = Counter(s.get('trainer_id') for s in total_rev_result.data)
+        top_id = trainer_counts.most_common(1)[0][0]
+        top_result = supabase.table('trainers').select('name').eq('id', top_id).execute()
+        if top_result.data:
+            top_trainer = top_result.data[0]['name']
+    
     stats = {
-        "total_revenue": conn.execute('SELECT SUM(price) FROM marketplace_sales').fetchone()[0] or 0,
-        "total_sales": conn.execute('SELECT COUNT(*) FROM marketplace_sales').fetchone()[0],
-        "top_trainer": conn.execute('''
-            SELECT name FROM trainers 
-            WHERE id = (SELECT trainer_id FROM marketplace_sales GROUP BY trainer_id ORDER BY COUNT(*) DESC LIMIT 1)
-        ''').fetchone()
+        "total_revenue": total_revenue,
+        "total_sales": total_sales,
+        "top_trainer": top_trainer
     }
-    stats["top_trainer"] = stats["top_trainer"][0] if stats["top_trainer"] else "Sem Vendas"
     
-    # Ranking de Vendas por Professor
-    ranking = conn.execute('''
-        SELECT t.name, COUNT(s.id) as sales_count, SUM(s.price) as revenue
-        FROM trainers t
-        JOIN marketplace_sales s ON t.id = s.trainer_id
-        GROUP BY t.id
-        ORDER BY sales_count DESC
-    ''').fetchall()
+    # Ranking
+    trainers_result = supabase.table('trainers').select('id, name').execute()
+    ranking = []
+    for t in trainers_result.data:
+        t_sales = supabase.table('marketplace_sales').select('price').eq('trainer_id', t['id']).execute()
+        if t_sales.data:
+            ranking.append({
+                'name': t['name'],
+                'sales_count': len(t_sales.data),
+                'revenue': sum(float(s['price']) for s in t_sales.data)
+            })
+    ranking.sort(key=lambda x: x['sales_count'], reverse=True)
     
-    # Vendas Recentes
-    recent_sales = conn.execute('''
-        SELECT s.created_at, st.name as student_name, w.title as workout_title, s.price
-        FROM marketplace_sales s
-        JOIN students st ON s.student_id = st.id
-        JOIN catalog_workouts w ON s.workout_id = w.id
-        ORDER BY s.created_at DESC LIMIT 10
-    ''').fetchall()
+    # Recent sales
+    recent_result = supabase.table('marketplace_sales').select(
+        '*, students(name), catalog_workouts(title)'
+    ).order('created_at', desc=True).limit(10).execute()
     
-    conn.close()
+    recent_sales = []
+    for s in recent_result.data:
+        recent_sales.append({
+            'created_at': s['created_at'],
+            'student_name': s.get('students', {}).get('name', '') if s.get('students') else '',
+            'workout_title': s.get('catalog_workouts', {}).get('title', '') if s.get('catalog_workouts') else '',
+            'price': s['price']
+        })
+    
     return jsonify({
         "stats": stats,
-        "ranking": [dict(r) for r in ranking],
-        "recent_sales": [dict(s) for s in recent_sales]
+        "ranking": ranking,
+        "recent_sales": recent_sales
     })
 
 @super_admin_bp.route('/feed', methods=['GET'])
 @require_super_auth
 def mod_get_feed():
-    conn = get_db_connection()
-    posts = conn.execute('SELECT * FROM feed_posts ORDER BY created_at DESC').fetchall()
-    conn.close()
-    return jsonify([dict(p) for p in posts])
+    result = supabase.table('feed_posts').select('*').order('created_at', desc=True).execute()
+    return jsonify(result.data)
 
 @super_admin_bp.route('/feed/<int:post_id>', methods=['DELETE'])
 @require_super_auth
 def mod_delete_post(post_id):
-    conn = get_db_connection()
-    conn.execute('DELETE FROM feed_posts WHERE id = ?', (post_id,))
-    conn.commit()
-    conn.close()
+    supabase.table('feed_posts').delete().eq('id', post_id).execute()
     return jsonify({"status": "success", "message": "Post removido."})
 
 @super_admin_bp.route('/catalog-mgmt', methods=['GET', 'POST', 'PUT'])
 @require_super_auth
 def manage_catalog():
-    conn = get_db_connection()
     if request.method == 'GET':
-        workouts = conn.execute('''
-            SELECT w.*, t.name as trainer_name 
-            FROM catalog_workouts w
-            JOIN trainers t ON w.trainer_id = t.id
-        ''').fetchall()
-        conn.close()
-        return jsonify([dict(w) for w in workouts])
+        result = supabase.table('catalog_workouts').select('*, trainers(name)').execute()
+        workouts = []
+        for w in result.data:
+            w_dict = dict(w)
+            w_dict['trainer_name'] = w.get('trainers', {}).get('name', '') if w.get('trainers') else ''
+            if 'trainers' in w_dict:
+                del w_dict['trainers']
+            workouts.append(w_dict)
+        return jsonify(workouts)
     
     data = request.json
     if request.method == 'POST':
-        conn.execute('''
-            INSERT INTO catalog_workouts (trainer_id, title, description, price, image)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (data['trainer_id'], data['title'], data['description'], data['price'], data.get('image', '')))
-        conn.commit()
+        supabase.table('catalog_workouts').insert({
+            'trainer_id': data['trainer_id'], 'title': data['title'],
+            'description': data['description'], 'price': float(data['price']),
+            'image': data.get('image', ''), 'workout_json': {}
+        }).execute()
     elif request.method == 'PUT':
-        conn.execute('''
-            UPDATE catalog_workouts SET title = ?, description = ?, price = ?, image = ?
-            WHERE id = ?
-        ''', (data['title'], data['description'], data['price'], data.get('image'), data['id']))
-        conn.commit()
+        supabase.table('catalog_workouts').update({
+            'title': data['title'], 'description': data['description'],
+            'price': float(data['price']), 'image': data.get('image')
+        }).eq('id', data['id']).execute()
     
-    conn.close()
     return jsonify({"status": "success"})
 
 @super_admin_bp.route('/catalog-mgmt/<int:workout_id>', methods=['DELETE'])
 @require_super_auth
 def delete_catalog_workout(workout_id):
-    conn = get_db_connection()
-    conn.execute('DELETE FROM catalog_workouts WHERE id = ?', (workout_id,))
-    conn.commit()
-    conn.close()
+    supabase.table('catalog_workouts').delete().eq('id', workout_id).execute()
     return jsonify({"status": "success"})
 
-# --- GESTÃO GLOBAL DE EXERCÍCIOS ---
 @super_admin_bp.route('/exercises', methods=['GET', 'POST'])
 @require_super_auth
 def manage_exercises():
-    conn = get_db_connection()
     if request.method == 'POST':
         data = request.json
         if data.get('id'):
-            cur = conn.execute('UPDATE exercises SET name = ?, category = ?, image = ? WHERE id = ?',
-                         (data['name'], data['category'], data['image'], data['id']))
-            print(f"EXERCICIO ATUALIZADO: ID {data['id']}, Linhas afetadas: {cur.rowcount}")
+            supabase.table('exercises').update({
+                'name': data['name'], 'category': data['category'], 'image': data['image']
+            }).eq('id', data['id']).execute()
         else:
-            cur = conn.execute('INSERT INTO exercises (name, category, image) VALUES (?, ?, ?)',
-                         (data['name'], data['category'], data['image']))
-            print(f"EXERCICIO CRIADO: ID {cur.lastrowid}")
-        conn.commit()
-        conn.close()
+            supabase.table('exercises').insert({
+                'name': data['name'], 'category': data['category'], 'image': data['image']
+            }).execute()
         return jsonify({"status": "success"})
     
-    exercises = conn.execute('SELECT * FROM exercises ORDER BY category, name').fetchall()
-    conn.close()
-    return jsonify([dict(e) for e in exercises])
+    result = supabase.table('exercises').select('*').order('category').order('name').execute()
+    return jsonify(result.data)
 
 @super_admin_bp.route('/exercises/<int:ex_id>', methods=['DELETE'])
 @require_super_auth
 def delete_exercise(ex_id):
-    conn = get_db_connection()
-    conn.execute('DELETE FROM exercises WHERE id = ?', (ex_id,))
-    conn.commit()
-    conn.close()
+    supabase.table('exercises').delete().eq('id', ex_id).execute()
     return jsonify({"status": "success"})

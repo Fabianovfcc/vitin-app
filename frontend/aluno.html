@@ -8,22 +8,21 @@
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="/assets/icons/favicon.ico">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="aluno-theme">
     <div class="app-container">
         <!-- Cabeçalho de Performance Elite -->
-        <header class="header-aluno-elite">
-            <h1 id="workout-date">Olá! 💪</h1>
-            <div class="header-stats">
-                <div class="header-stat-badge streak-badge">
+        <header class="header-aluno-elite" style="display:flex; justify-content:space-between; align-items:center;">
+            <h1 id="workout-date" style="font-size:1.4rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Olá! 💪</h1>
+            <div class="header-stats" style="gap:5px;">
+                <div class="header-stat-badge streak-badge" style="padding:4px 8px;">
                     <span class="stat-icon">🔥</span>
                     <span class="stat-value" id="streak-count">0</span>
-                    <small>Destaque</small>
                 </div>
-                <div class="header-stat-badge kcal-badge" onclick="alert('Queima baseada em 5 kcal por série concluída!')">
+                <div class="header-stat-badge kcal-badge" onclick="alert('Queima baseada em 5 kcal por série concluída!')" style="padding:4px 8px;">
                     <span class="stat-icon">⚡</span>
                     <span class="stat-value" id="kcal-count">0</span>
-                    <small>Kcal</small>
                 </div>
             </div>
         </header>
@@ -33,15 +32,16 @@
             <button onclick="dismissAlert()">OK</button>
         </div>
 
-        <nav id="day-selector-aluno" class="day-selector hidden">
-            <button class="day-tab active" data-day="seg">S</button>
-            <button class="day-tab" data-day="ter">T</button>
-            <button class="day-tab" data-day="qua">Q</button>
-            <button class="day-tab" data-day="qui">Q</button>
-            <button class="day-tab" data-day="sex">S</button>
-            <button class="day-tab" data-day="sab">S</button>
-            <button class="day-tab" data-day="dom">D</button>
+        <nav id="day-selector-aluno" class="day-selector hidden" style="overflow-x:auto; padding-bottom:5px;">
+            <button class="day-tab" data-day="dom">Dom</button>
+            <button class="day-tab active" data-day="seg">Seg</button>
+            <button class="day-tab" data-day="ter">Ter</button>
+            <button class="day-tab" data-day="qua">Qua</button>
+            <button class="day-tab" data-day="qui">Qui</button>
+            <button class="day-tab" data-day="sex">Sex</button>
+            <button class="day-tab" data-day="sab">Sáb</button>
         </nav>
+
 
         <main id="main-content">
             <!-- Aba: Treino (Padrão) -->
@@ -68,27 +68,37 @@
             </section>
 
             <!-- Aba: Evolução (Stats) -->
-            <section id="stats-content" class="tab-content hidden" style="padding: 1rem;">
+            <section id="stats-content" class="tab-content hidden" style="padding: 1rem; padding-bottom: 120px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h2 class="glow-text">Sua Jornada 📈</h2>
                     <button class="btn-primary-small" onclick="showHealthConnectModal()" style="font-size:0.6rem; padding:4px 8px; border-radius:8px;">⌚ Relógio</button>
                 </div>
-                <div id="stats-overview-free" style="margin-top: 1rem;"></div>
                 
-                <h3 class="section-title" style="margin-top: 2rem;">Histórico Recente</h3>
+                <div id="stats-overview-free" style="margin-top: 1rem;">
+                    <!-- Gráficos injetados via JS -->
+                    <div class="glass-card" style="margin-bottom: 20px; padding: 15px;">
+                        <h4 style="margin-bottom: 10px; font-size: 0.9rem; color: var(--text-secondary);">Progresso Semanal</h4>
+                        <canvas id="chartWeekly" style="width:100%; height:150px;"></canvas>
+                    </div>
+                </div>
+                
+                <h3 class="section-title" style="margin-top: 2rem;">Histórico de Treinos</h3>
                 <div id="history-container"></div>
 
                 <div class="premium-lock-container" style="margin-top: 2rem;">
                     <div class="blurred-content">
-                        <h3>Gráfico de Carga Pro</h3>
-                        <div style="height: 100px; background: rgba(255,255,255,0.05); border-radius: 15px;"></div>
+                        <h3>Músculo Alvo</h3>
+                        <canvas id="chartMuscle" style="width:100%; height:120px; margin-bottom: 15px; opacity:0.5;"></canvas>
+                        <h3>Exercício Favorito</h3>
+                        <canvas id="chartExercise" style="width:100%; height:120px; opacity:0.5;"></canvas>
                     </div>
-                    <div class="premium-overlay" onclick="showUpgradeModal('Evolução de Carga')">
+                    <div class="premium-overlay" onclick="showUpgradeModal('Gráficos Detalhados')">
                         <span class="premium-tag">PRO</span>
-                        <p class="upgrade-teaser-text">Desbloqueie o gráfico de força!</p>
+                        <p class="upgrade-teaser-text">Desbloqueie todos os gráficos!</p>
                     </div>
                 </div>
             </section>
+
 
             <!-- Aba: Feed -->
             <section id="feed-content" class="tab-content hidden">

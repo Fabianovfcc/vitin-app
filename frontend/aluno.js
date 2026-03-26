@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log("Token persistido para acesso via atalho:", token);
     
     // Navegação por abas
-    window.switchStudentTab = (tab) => {
+window.switchStudentTab = (tab) => {
         const sections = ['workout-content', 'discover-content', 'feed-content', 'stats-content', 'my-protocols-content'];
         sections.forEach(s => {
             const el = document.getElementById(s);
@@ -73,6 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (sc) sc.classList.remove('hidden');
             if (emptyState) emptyState.classList.add('hidden');
             if (daySelector) daySelector.classList.add('hidden');
+            applyPlanRestrictions(); // Carrega histórico e renderiza charts
             trackConversionEvent('open_stats_tab');
         } else if (tab === 'my-protocols') {
             const mpc = document.getElementById('my-protocols-content');
@@ -525,6 +526,7 @@ window.finishWorkout = async () => {
                 day: currentDay,
                 total_sets: total,
                 completed_sets: done,
+                completed_sets_json: completedSets, // ADDED: Send full exercise data for Premium Charts
                 cardio: cardioStr,
                 calories: kcal
             })
@@ -538,44 +540,6 @@ window.finishWorkout = async () => {
 // ────────────────────────────────────────
 // LÓGICA DO FEED (24H) - COM CÂMERA
 // ────────────────────────────────────────
-window.showPostModal = () => {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'post-modal';
-    modal.innerHTML = `
-        <div class="modal-content glass-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                <h3 style="margin:0;">Postar Resultado 🔥</h3>
-                <button onclick="document.getElementById('post-modal').remove()" class="icon-btn" style="font-size: 1.5rem; line-height:1;">×</button>
-            </div>
-            <p class="subtitle">Sua foto sumirá em 24 horas.</p>
-            <div class="post-form-modal" style="margin-top: 1.5rem;">
-                <label class="btn-primary" style="display:block; text-align:center; padding:15px; cursor:pointer; background:rgba(255,255,255,0.05); border-radius:12px; border: 1px dashed var(--accent);">
-                    📸 Tirar Foto ou Galeria
-                    <input type="file" id="post-file-input" accept="image/*" capture="camera" style="display:none;" onchange="handlePostFile(this)">
-                </label>
-                <div id="post-preview" style="margin-top:1rem; text-align:center;"></div>
-                <input type="hidden" id="post-image-base64">
-                
-                <textarea id="post-caption" placeholder="E aí, como foi o treino de hoje?" rows="3" style="margin-top:1rem; width:100%; border-radius:12px; padding:10px; background:rgba(255,255,255,0.05); color:white; border:1px solid rgba(255,255,255,0.1);"></textarea>
-                <button class="btn-success" onclick="submitPost()" style="margin-top:1rem;">Postar Agora!</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-};
-
-window.handlePostFile = (input) => {
-    const file = input.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            document.getElementById('post-image-base64').value = e.target.result;
-            document.getElementById('post-preview').innerHTML = `<img src="${e.target.result}" style="max-height:200px; width:100%; object-fit:cover; border-radius:12px; margin-bottom:1rem;">`;
-        };
-        reader.readAsDataURL(file);
-    }
-};
 
 window.showPostModal = () => {
     const modal = document.createElement('div');
@@ -587,18 +551,19 @@ window.showPostModal = () => {
             <p class="subtitle">Motive sua comunidade!</p>
             
             <div class="visibility-selector" style="margin: 1.5rem 0;">
-                <p style="font-size:0.7rem; color:var(--text-secondary); margin-bottom:0.5rem; text-align:left;">QUEM PODE VER?</p>
-                <div class="segmented-control">
-                    <input type="radio" id="v-trainer" name="visibility" value="trainer" checked>
+                <p style="font-size:0.7rem; color:var(--text-secondary); margin-bottom:0.5rem; text-align:left;">QUEM PODE VER? (Selecione 1 ou mais)</p>
+                <div class="segmented-control checkbox-control" style="display: flex; gap: 4px;">
+                    <input type="checkbox" id="v-trainer" name="visibility" value="trainer" checked>
                     <label for="v-trainer">Personal</label>
-                    <input type="radio" id="v-gym" name="visibility" value="gym">
+                    <input type="checkbox" id="v-gym" name="visibility" value="gym">
                     <label for="v-gym">Academia</label>
-                    <input type="radio" id="v-public" name="visibility" value="public">
+                    <input type="checkbox" id="v-public" name="visibility" value="public">
                     <label for="v-public">Público</label>
                 </div>
             </div>
 
-            <input type="file" id="post-file" accept="image/*" capture="camera" class="hidden" onchange="previewPost(this)">
+            <!-- SEM capture="camera" para permitir Galeria no mobile -->
+            <input type="file" id="post-file" accept="image/*" class="hidden" onchange="previewPost(this)">
             <label for="post-file" class="upload-area" id="post-preview">
                 <div style="font-size: 2rem;">📸</div>
                 <p>Tirar Foto ou Galeria</p>
@@ -607,7 +572,7 @@ window.showPostModal = () => {
             <textarea id="post-caption" placeholder="Legenda (ex: Tá pago!)" style="width:100%; margin-top:1rem; background:rgba(255,255,255,0.05); color:white; border:none; padding:10px; border-radius:8px;"></textarea>
             
             <div style="display:flex; gap:10px; margin-top:1.5rem;">
-                <button class="btn-success" style="flex:2" onclick="submitPost()">Postar Agora 🚀</button>
+                <button id="btn-submit-post" class="btn-success" style="flex:2" onclick="submitPost()">Postar Agora 🚀</button>
                 <button class="btn-cancel" style="flex:1" onclick="document.getElementById('post-modal').remove()">Sair</button>
             </div>
         </div>
@@ -617,24 +582,62 @@ window.showPostModal = () => {
 
 window.previewPost = (input) => {
     if (input.files && input.files[0]) {
+        const file = input.files[0];
         const reader = new FileReader();
+        
         reader.onload = (e) => {
-            const preview = document.getElementById('post-preview');
-            preview.innerHTML = `<img src="${e.target.result}" style="width:100%; height:150px; object-fit:cover; border-radius:12px;">`;
-            preview.dataset.imgValue = e.target.result;
+            const img = new Image();
+            img.onload = () => {
+                // Resize image via Canvas to max 800px width/height and compress to 0.7 quality
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const MAX_DIM = 800;
+                
+                if (width > height) {
+                    if (width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; }
+                } else {
+                    if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                
+                const preview = document.getElementById('post-preview');
+                preview.innerHTML = `<img src="${compressedDataUrl}" style="width:100%; height:150px; object-fit:cover; border-radius:12px;">`;
+                preview.dataset.imgValue = compressedDataUrl;
+            };
+            img.src = e.target.result;
         };
-        reader.readAsDataURL(input.files[0]);
+        reader.readAsDataURL(file);
     }
 };
 
 window.submitPost = async () => {
-    const imgData = document.getElementById('post-preview').dataset.imgValue;
+    const previewArea = document.getElementById('post-preview');
+    const imgData = previewArea ? previewArea.dataset.imgValue : null;
     const caption = document.getElementById('post-caption').value || "Tá pago! 💪";
-    const visibility = document.querySelector('input[name="visibility"]:checked').value;
-
+    
+    // Coleta múltiplas opções de visibilidade
+    const checkedVisibilities = Array.from(document.querySelectorAll('input[name="visibility"]:checked')).map(cb => cb.value);
+    
     if (!imgData) return alert('Por favor, adicione uma foto!');
+    if (checkedVisibilities.length === 0) return alert('Escolha quem pode ver sua postagem!');
+
+    const btnSubmit = document.getElementById('btn-submit-post');
+    btnSubmit.disabled = true;
+    btnSubmit.innerText = "Enviando... ⏳";
 
     try {
+        // Envia como Array ou comma-separated. O backend precisará tratar se for Public+Trainer, etc.
+        // Por hora, enviaremos a primeira (maior visibilidade) ou public se selecionado
+        const visibilityToSend = checkedVisibilities.includes('public') ? 'public' : 
+                               checkedVisibilities.includes('gym') ? 'gym' : 'trainer';
+
         const res = await fetch('/api/feed', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -642,7 +645,7 @@ window.submitPost = async () => {
                 student_id: currentStudentId,
                 image_base64: imgData,
                 caption: caption,
-                visibility: visibility
+                visibility: visibilityToSend // mandamos o nível mais 'aberto' selecionado
             })
         });
 
@@ -651,11 +654,17 @@ window.submitPost = async () => {
             loadFeed();
         } else {
             alert('Erro ao postar. Tente novamente.');
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = "Postar Agora 🚀";
         }
     } catch (e) {
         alert('Erro ao postar.');
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = "Postar Agora 🚀";
     }
 };
+
+
 
 // --- PREMIUM LOGIC & HISTÓRICO COM PAYWALL ---
 function applyPlanRestrictions() {
@@ -665,9 +674,9 @@ function applyPlanRestrictions() {
     if (currentPlanType === 'premium') {
         overlays.forEach(ov => ov.style.display = 'none');
         blurred.forEach(bc => bc.classList.remove('blurred-content'));
-    } else {
-        renderFreeStats();
     }
+    // Always load history and charts, regardless of plan (charts function handles internal locks)
+    loadHistory();
 }
 
 async function loadHistory() {
@@ -680,6 +689,7 @@ async function loadHistory() {
         
         if (history.length === 0) {
             container.innerHTML = '<p class="subtitle">Nenhum treino registrado ainda. Go! 🏋️</p>';
+            renderCharts(history);
             return;
         }
 
@@ -693,42 +703,119 @@ async function loadHistory() {
 
             return `
                 <div class="glass-card history-card ${isLocked ? 'blurred-content' : ''}" style="margin-bottom: 0.8rem; padding: 1rem; position: relative;">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span><b>Treino de ${h.day}</b></span>
-                        <span style="font-size:0.8rem; color:var(--text-secondary);">${new Date(h.created_at).toLocaleDateString()}</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:1.1rem;"><b>${h.day}</b></span>
+                        <span style="font-size:0.75rem; color:var(--text-secondary); background:rgba(255,255,255,0.05); padding:4px 8px; border-radius:12px;">
+                            ${new Date(h.created_at).toLocaleDateString('pt-BR')}
+                        </span>
                     </div>
-                    <p style="font-size:0.85rem; margin-top:5px; color:var(--accent);">🔥 ${h.completed_sets} séries | ${h.calories || (h.completed_sets * 5)} Kcal</p>
+                    <div style="margin-top:8px; display:flex; gap:10px;">
+                        <span style="font-size:0.85rem; color:var(--accent);">🔥 ${h.completed_sets} séries</span>
+                        <span style="font-size:0.85rem; color:#f59e0b;">⚡ ${h.calories || (h.completed_sets * 5)} Kcal</span>
+                    </div>
                     ${isLocked ? `
-                        <div class="premium-overlay" style="background: rgba(0,0,0,0.6);" onclick="showUpgradeModal('Histórico Antigo')">
-                            <span style="font-size:1.2rem;">🔒</span>
+                        <div class="premium-overlay" style="background: rgba(0,0,0,0.6); border-radius:16px; display:flex; flex-direction:column; justify-content:center; align-items:center;" onclick="showUpgradeModal('Histórico Antigo')">
+                            <span style="font-size:1.5rem; margin-bottom:5px;">🔒</span>
+                            <span style="font-size:0.8rem; font-weight:bold; text-transform:uppercase;">Treino Pro</span>
                         </div>
                     ` : ''}
                 </div>
             `;
         }).join('');
+        
+        renderCharts(history);
     } catch (e) {
         container.innerHTML = '<p class="subtitle">Histórico indisponível no momento.</p>';
     }
 }
 
-function renderFreeStats() {
-    const overview = document.getElementById('stats-overview-free');
-    if (!overview) return;
+let weeklyChartInstance = null;
+let muscleChartInstance = null;
+let exerciseChartInstance = null;
 
-    overview.innerHTML = `
-        <div class="performance-info" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
-            <div class="perf-badge">
-                <span class="perf-value">7 dias</span>
-                <span class="perf-label">Histórico Grátis</span>
-            </div>
-            <div class="perf-badge">
-                <span class="perf-value">On</span>
-                <span class="perf-label">Calorias (v1)</span>
-            </div>
-        </div>
-    `;
-    loadHistory();
+function renderCharts(history) {
+    if (!window.Chart) return;
+    
+    // 1. Chart Semanal (FREE)
+    const ctxWeekly = document.getElementById('chartWeekly');
+    if (ctxWeekly) {
+        // Conta treinos por dia da semana
+        const counts = { 'Dom':0, 'Seg':0, 'Ter':0, 'Qua':0, 'Qui':0, 'Sex':0, 'Sáb':0 };
+        const past7Days = history.filter(h => {
+            const hDate = new Date(h.date);
+            return (new Date() - hDate) / (1000*60*60*24) <= 7;
+        });
+        
+        past7Days.forEach(h => {
+             // Tratamento básico. Se backend mandar nome do dia no BD:
+             const dayName = h.day.substring(0,3); 
+             if(counts[dayName] !== undefined) counts[dayName]++;
+        });
+
+        if (weeklyChartInstance) weeklyChartInstance.destroy();
+        weeklyChartInstance = new Chart(ctxWeekly, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(counts),
+                datasets: [{
+                    label: 'Treinos',
+                    data: Object.values(counts),
+                    backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { display:false }, x: { grid: { display:false } } },
+                plugins: { legend: { display:false } }
+            }
+        });
+    }
+
+    // Se não for premium, paramos por aqui as renderizações reais dos graficos bloqueados
+    if (currentPlanType !== 'premium') return;
+
+    // 2. Chart Musculo (PRO)
+    const ctxMuscle = document.getElementById('chartMuscle');
+    if (ctxMuscle) {
+        if (muscleChartInstance) muscleChartInstance.destroy();
+        muscleChartInstance = new Chart(ctxMuscle, {
+            type: 'doughnut',
+            data: {
+                labels: ['Peito', 'Costas', 'Perna', 'Braço'],
+                datasets: [{
+                    data: [30, 25, 35, 10], // Mock até backend mandar real
+                    backgroundColor: ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins:{ legend: {position: 'right', labels:{color:'white'}}} }
+        });
+    }
+
+    // 3. Chart Exercicio (PRO)
+    const ctxEx = document.getElementById('chartExercise');
+    if (ctxEx) {
+        if (exerciseChartInstance) exerciseChartInstance.destroy();
+        exerciseChartInstance = new Chart(ctxEx, {
+            type: 'line',
+            data: {
+                labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
+                datasets: [{
+                    label: 'Supino (kg)',
+                    data: [40, 42, 45, 50], // Mock até o backend enviar real
+                    borderColor: '#10b981',
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x:{grid:{display:false}}, y:{display:false} } }
+        });
+    }
 }
+
 
 window.showHealthConnectModal = () => {
     document.getElementById('modal-health').classList.remove('hidden');

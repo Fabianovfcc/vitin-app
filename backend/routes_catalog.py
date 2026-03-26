@@ -1,21 +1,19 @@
 from flask import Blueprint, jsonify, request
-from .database import get_db_connection
+from .supabase_client import supabase
 
 catalog_bp = Blueprint('catalog', __name__)
 
 @catalog_bp.route('/api/catalog')
 def get_catalog():
-    conn = get_db_connection()
-    trainers = conn.execute('SELECT * FROM trainers').fetchall()
+    trainers_result = supabase.table('trainers').select('*').execute()
     catalog = []
     
-    for t in trainers:
+    for t in trainers_result.data:
         trainer_dict = dict(t)
-        workouts = conn.execute('SELECT * FROM catalog_workouts WHERE trainer_id = ?', (t['id'],)).fetchall()
-        trainer_dict['workouts'] = [dict(w) for w in workouts]
+        workouts_result = supabase.table('catalog_workouts').select('*').eq('trainer_id', t['id']).execute()
+        trainer_dict['workouts'] = workouts_result.data
         catalog.append(trainer_dict)
         
-    conn.close()
     return jsonify(catalog)
 
 @catalog_bp.route('/api/catalog/buy', methods=['POST'])
@@ -24,19 +22,18 @@ def buy_workout():
     student_id = data.get('student_id')
     workout_id = data.get('workout_id')
     
-    conn = get_db_connection()
-    # Pegar info do workout
-    workout = conn.execute('SELECT * FROM catalog_workouts WHERE id = ?', (workout_id,)).fetchone()
-    if not workout:
-        conn.close()
+    result = supabase.table('catalog_workouts').select('*').eq('id', workout_id).execute()
+    if not result.data:
         return jsonify({"error": "Protocolo não encontrado"}), 404
-        
-    from datetime import datetime
-    conn.execute('''
-        INSERT INTO marketplace_sales (workout_id, trainer_id, student_id, price, created_at)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (workout_id, workout['trainer_id'], student_id, workout['price'], datetime.now().isoformat()))
     
-    conn.commit()
-    conn.close()
+    workout = result.data[0]
+    from datetime import datetime
+    supabase.table('marketplace_sales').insert({
+        'workout_id': workout_id,
+        'trainer_id': workout['trainer_id'],
+        'student_id': student_id,
+        'price': float(workout['price']),
+        'created_at': datetime.now().isoformat()
+    }).execute()
+    
     return jsonify({"status": "success", "message": "Protocolo adquirido com sucesso! 🔥 Redirecionando..."})
