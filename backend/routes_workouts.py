@@ -31,6 +31,23 @@ def save_workout():
     conn.close()
     return jsonify({"status": "success", "message": "Treino enviado com sucesso!"}), 201
 
+@workouts_bp.route('/api/workouts/history')
+def get_workout_history():
+    student_id = request.args.get('student_id')
+    if not student_id:
+        return jsonify({"error": "student_id missing"}), 400
+    
+    conn = get_db_connection()
+    history = conn.execute('''
+        SELECT id, student_id, student_name, day, total_sets, completed_sets, cardio, 
+               finished_at as date, finished_at as created_at 
+        FROM workout_history 
+        WHERE student_id = ? 
+        ORDER BY finished_at DESC
+    ''', (int(student_id),)).fetchall()
+    conn.close()
+    return jsonify([dict(h) for h in history])
+
 @workouts_bp.route('/api/workouts/<int:student_id>')
 def get_workout(student_id):
     conn = get_db_connection()
@@ -91,9 +108,10 @@ def finish_workout():
 def get_all_students_simple():
     conn = get_db_connection()
     students = conn.execute('''
-        SELECT s.id, s.name, s.whatsapp as token, t.name as trainer_name 
+        SELECT s.id, s.name, s.access_token as token, t.name as trainer_name 
         FROM students s
         LEFT JOIN trainers t ON s.trainer_id = t.id
     ''').fetchall()
     conn.close()
     return jsonify([dict(s) for s in students])
+

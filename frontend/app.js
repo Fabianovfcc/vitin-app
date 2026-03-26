@@ -5,11 +5,31 @@ let workoutExercises = [];
 let exercisesLibrary = [];
 let currentDay = 'seg';
 
+let deferredPrompt;
+
 document.addEventListener('DOMContentLoaded', () => {
     checkInitialAuth();
     setupEventListeners();
     pollNotifications();
     setInterval(pollNotifications, 15000);
+
+    // Sistema de Instalação PWA
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const installBtn = document.getElementById('pwa-install-btn');
+        if (installBtn) {
+            installBtn.classList.remove('hidden');
+            installBtn.onclick = async () => {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                   installBtn.classList.add('hidden');
+                }
+                deferredPrompt = null;
+            };
+        }
+    });
 
     // Buscar IP real do servidor para links de WhatsApp
     fetch('/api/info/ip').then(r => r.json()).then(data => {

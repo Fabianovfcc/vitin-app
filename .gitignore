@@ -10,3 +10,15 @@ env/
 backend/data/*.db
 .vscode/
 .idea/
+
+# Uploads do Feed (fotos ficam locais, não no repo)
+frontend/uploads/*
+!frontend/uploads/.gitkeep
+
+# Node
+node_modules/
+
+# Temp/OS
+*.log
+.DS_Store
+Thumbs.db

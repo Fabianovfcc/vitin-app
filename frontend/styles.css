@@ -421,7 +421,197 @@ header {
     border-radius: 8px;
 }
 
-/* ===== PÁGINA DO ALUNO ===== */
+/* ===== PÁGINA DO ALUNO ELITE ===== */
+.header-aluno-elite {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 0.5rem;
+}
+
+.header-stats {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.header-stat-badge {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.5rem 0.8rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.streak-badge { border-color: rgba(239, 68, 68, 0.3); }
+.kcal-badge { border-color: rgba(234, 179, 8, 0.3); }
+
+.header-stat-badge .stat-icon { font-size: 1.2rem; }
+.header-stat-badge .stat-value { font-size: 1.1rem; color: #fff; font-weight: 700; }
+.header-stat-badge small { font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase; }
+
+.progress-section {
+    padding: 1.5rem;
+    margin-top: 2rem;
+    border-color: var(--accent);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.progress-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* CARDS DE EXERCÍCIO ELITE (BOLD) */
+.exercise-card-elite {
+    background: linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    border-radius: 20px;
+    margin-bottom: 2rem;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.exercise-card-header {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.exercise-card-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.2rem;
+}
+
+.exercise-card-subtitle {
+    font-size: 0.75rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.exercise-visual {
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    background: #000;
+}
+
+.performance-info {
+    padding: 1.2rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    background: rgba(0,0,0,0.2);
+}
+
+.perf-badge {
+    text-align: center;
+    background: rgba(255,255,255,0.03);
+    padding: 0.8rem 0.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+.perf-value {
+    display: block;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+}
+
+.perf-label {
+    font-size: 0.6rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+.sets-pills {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 1.5rem 1rem;
+}
+
+.set-pill {
+    width: 50px;
+    height: 50px;
+    border-radius: 15px;
+    border: 2px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.set-pill.active {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border-color: #10b981;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+    transform: scale(1.1);
+}
+
+/* PREMIUM UPSELL STYLES */
+.premium-lock-container {
+    position: relative;
+    border-radius: 20px;
+    overflow: hidden;
+    margin-bottom: 2rem;
+}
+
+.blurred-content {
+    filter: blur(8px);
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.premium-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.4);
+    cursor: pointer;
+    z-index: 5;
+    transition: 0.3s;
+}
+
+.premium-overlay:hover { background: rgba(0,0,0,0.2); }
+
+.premium-tag {
+    background: linear-gradient(45deg, #f59e0b, #d97706);
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+}
+
+.lock-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+.upgrade-teaser-text { font-size: 0.85rem; padding: 0 2rem; text-align: center; color: #fff; font-weight: 500; }
+
 
 .student-btns {
     display: flex;
@@ -1168,15 +1358,63 @@ header {
     gap: 1rem;
 }
 
-.post-form-modal input, .post-form-modal textarea {
+.input-group input, .input-group select {
     width: 100%;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
-    padding: 0.8rem;
+    padding: 12px;
     color: white;
     font-family: inherit;
 }
+
+/* COMMUNITY FEED ENHANCEMENTS */
+.badge-mini {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.badge-mini.public { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+.badge-mini.gym { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.badge-mini.trainer { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+
+.segmented-control {
+    display: flex;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+}
+.segmented-control input { display: none; }
+.segmented-control label {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: 0.2s;
+    color: var(--text-dim);
+}
+.segmented-control input:checked + label {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 10px rgba(139, 92, 246, 0.3);
+}
+
+.upload-area {
+    display: block;
+    border: 2px dashed rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.3s;
+}
+.upload-area:hover { border-color: var(--accent); background: rgba(139, 92, 246, 0.05); }
 
 /* ────────────────────────────────────────
    MASTER ELITE DASHBOARD 3.0

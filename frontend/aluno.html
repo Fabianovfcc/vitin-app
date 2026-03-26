@@ -1,244 +1,177 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Treino - App Vitin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vitin App - Treino Elite</title>
     <link rel="stylesheet" href="/styles.css?v=2.2">
     <link rel="manifest" href="/manifest.json">
-    <script>
-        // Forçar atualização do Service Worker se houver versão antiga bugada
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                for (let registration of registrations) {
-                    // Se for uma versão antiga, forçamos o update
-                    registration.update();
-                }
-            });
-        }
-    </script>
-    <script>
-        // FORÇAR LIMPEZA DE CACHE ANTIGO
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    registration.unregister();
-                }
-            });
-        }
-        // Limpar caches nomeados
-        if (window.caches) {
-            caches.keys().then(function(names) {
-                for (let name of names) caches.delete(name);
-            });
-        }
-    </script>
-    <meta name="theme-color" content="#0a0a0f">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="/assets/icons/favicon.ico">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
-<body class="dark-theme">
-    <div class="glass-container">
-        <header>
-            <h1 class="glow-text">Meu Treino</h1>
-            <p id="workout-date" class="subtitle">Carregando...</p>
+<body class="aluno-theme">
+    <div class="app-container">
+        <!-- Cabeçalho de Performance Elite -->
+        <header class="header-aluno-elite">
+            <h1 id="workout-date">Olá! 💪</h1>
+            <div class="header-stats">
+                <div class="header-stat-badge streak-badge">
+                    <span class="stat-icon">🔥</span>
+                    <span class="stat-value" id="streak-count">0</span>
+                    <small>Destaque</small>
+                </div>
+                <div class="header-stat-badge kcal-badge" onclick="alert('Queima baseada em 5 kcal por série concluída!')">
+                    <span class="stat-icon">⚡</span>
+                    <span class="stat-value" id="kcal-count">0</span>
+                    <small>Kcal</small>
+                </div>
+            </div>
         </header>
 
-        <!-- Alerta de Ficha Nova -->
-        <div id="new-workout-alert" class="new-workout-alert hidden">
-            <span>🔔</span>
-            <p>Seu Personal atualizou sua ficha!</p>
-            <button onclick="dismissAlert()" class="icon-btn" style="color: #fff;">×</button>
+        <div id="new-workout-alert" class="alert-banner hidden">
+            <span>✨ Seu personal enviou um novo treino!</span>
+            <button onclick="dismissAlert()">OK</button>
         </div>
 
-        <!-- Seletor de Aluno (Dinâmico) -->
-        <div id="student-selector" class="glass-card hidden">
-            <label class="section-title" style="margin-bottom: 0.5rem; display: block;">Quem é você?</label>
-            <div id="student-btns" class="student-btns">
-                <!-- Preenchido dinamicamente -->
-            </div>
-        </div>
+        <nav id="day-selector-aluno" class="day-selector hidden">
+            <button class="day-tab active" data-day="seg">S</button>
+            <button class="day-tab" data-day="ter">T</button>
+            <button class="day-tab" data-day="qua">Q</button>
+            <button class="day-tab" data-day="qui">Q</button>
+            <button class="day-tab" data-day="sex">S</button>
+            <button class="day-tab" data-day="sab">S</button>
+            <button class="day-tab" data-day="dom">D</button>
+        </nav>
 
-        <!-- Seletor de Dia da Semana (Aluno) -->
-        <div id="day-selector-aluno" class="day-selector-container hidden" style="margin-top: 1rem;">
-            <div class="day-tabs">
-                <button class="day-tab active" data-day="seg">SEG</button>
-                <button class="day-tab" data-day="ter">TER</button>
-                <button class="day-tab" data-day="qua">QUA</button>
-                <button class="day-tab" data-day="qui">QUI</button>
-                <button class="day-tab" data-day="sex">SEX</button>
-                <button class="day-tab" data-day="sab">SAB</button>
-                <button class="day-tab" data-day="dom">DOM</button>
-            </div>
-        </div>
+        <main id="main-content">
+            <!-- Aba: Treino (Padrão) -->
+            <section id="workout-content" class="tab-content">
+                <div id="challenge-container"></div>
+                <section id="cardio-content" class="glass-card hidden">
+                    <h3>🏃 Cardio de Hoje</h3>
+                    <p id="cardio-info"></p>
+                </section>
+                <div id="workout-exercises">
+                    <!-- Exercícios injetados -->
+                </div>
+                <div class="progress-section glass-card">
+                    <div class="progress-header">
+                        <span>Seu Progresso</span>
+                        <span id="progress-percentage">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <p id="progress-text" class="progress-subtitle">Conclua as séries para pontuar!</p>
+                </div>
+                <button id="finish-btn" class="btn-success" onclick="finishWorkout()">Finalizar Treino 🔥</button>
+            </section>
 
-        <!-- Conteúdo: Explorar Treinos (Marketplace) -->
-        <div id="discover-content" class="hidden" style="margin-bottom: 5rem;">
-            <header style="text-align: left; margin-bottom: 2rem;">
-                <h2 class="glow-text" style="font-size: 1.8rem;">Descobrir Elite</h2>
-                <p class="subtitle">Protocolos dos melhores treinadores do CT CDE</p>
-            </header>
-            
-            <section>
-                <h3 class="section-title">Treinadores Certificados 🏆</h3>
-                <div id="trainer-grid" class="trainer-grid">
-                    <!-- Dinâmico -->
+            <!-- Aba: Evolução (Stats) -->
+            <section id="stats-content" class="tab-content hidden" style="padding: 1rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2 class="glow-text">Sua Jornada 📈</h2>
+                    <button class="btn-primary-small" onclick="showHealthConnectModal()" style="font-size:0.6rem; padding:4px 8px; border-radius:8px;">⌚ Relógio</button>
+                </div>
+                <div id="stats-overview-free" style="margin-top: 1rem;"></div>
+                
+                <h3 class="section-title" style="margin-top: 2rem;">Histórico Recente</h3>
+                <div id="history-container"></div>
+
+                <div class="premium-lock-container" style="margin-top: 2rem;">
+                    <div class="blurred-content">
+                        <h3>Gráfico de Carga Pro</h3>
+                        <div style="height: 100px; background: rgba(255,255,255,0.05); border-radius: 15px;"></div>
+                    </div>
+                    <div class="premium-overlay" onclick="showUpgradeModal('Evolução de Carga')">
+                        <span class="premium-tag">PRO</span>
+                        <p class="upgrade-teaser-text">Desbloqueie o gráfico de força!</p>
+                    </div>
                 </div>
             </section>
 
-            <section id="trainer-details" class="hidden" style="margin-top: 2rem;">
-                <button onclick="hideTrainerDetails()" class="btn-create-ex" style="margin-bottom: 1rem;">← Voltar</button>
-                <div id="selected-trainer-info"></div>
-                <div id="protocol-list" class="protocol-list"></div>
-        </div>
-
-        <!-- Conteúdo: Feed de Resultados (24h) -->
-        <div id="feed-content" class="hidden" style="margin-bottom: 5rem;">
-            <header class="feed-header">
-                <div>
-                    <h2 class="glow-text" style="font-size: 1.8rem;">Feed Vitin</h2>
-                    <p class="subtitle">Social Proof dos Guerreiros</p>
-                </div>
-                <button class="btn-add-post" onclick="showPostModal()">+</button>
-            </header>
-            
-            <div id="feed-list" class="feed-container">
-                <!-- Posts dinâmicos -->
-            </div>
-        </div>
-
-        <!-- Conteúdo: Histórico e Evolução (Teaser Premium) -->
-        <div id="stats-content" class="hidden" style="margin-bottom: 5rem; padding: 1.5rem;">
-            <header style="text-align: left; margin-bottom: 2rem;">
-                <h2 class="glow-text" style="font-size: 1.8rem;">Minha Evolução</h2>
-                <p class="subtitle">Acompanhe seu progresso real</p>
-            </header>
-
-            <!-- Evolução de Carga (Teaser) -->
-            <div class="premium-lock-container">
-                <div class="blurred-content glass-card" style="height: 200px; display: flex; align-items: center; justify-content: center;">
-                    <p>Gráfico de Carga Indisponível</p>
-                </div>
-                <div class="premium-overlay" onclick="showUpgradeModal('evolução de carga')">
-                    <span class="premium-tag">Premium</span>
-                    <span class="lock-icon">🔒</span>
-                    <p class="upgrade-teaser-text">Desbloqueie o gráfico de evolução de carga e veja sua força aumentar!</p>
-                </div>
-            </div>
-
-            <!-- Histórico de Treinos (Teaser) -->
-            <h3 class="section-title">Histórico Recente</h3>
-            <div class="premium-lock-container">
-                <div class="blurred-content">
-                    <div class="glass-card" style="margin-bottom: 0.8rem; padding: 1rem; background: rgba(255,255,255,0.05);">Treino de Peito - 22/03/24</div>
-                    <div class="glass-card" style="margin-bottom: 0.8rem; padding: 1rem; background: rgba(255,255,255,0.05);">Treino de Costas - 20/03/24</div>
-                    <div class="glass-card" style="margin-bottom: 0.8rem; padding: 1rem; background: rgba(255,255,255,0.05);">Treino de Pernas - 18/03/24</div>
-                </div>
-                <div class="premium-overlay" onclick="showUpgradeModal('histórico completo')">
-                    <span class="premium-tag">Premium</span>
-                    <span class="lock-icon">🔒</span>
-                    <p class="upgrade-teaser-text">Tenha acesso ao histórico completo de todos os seus treinos passados.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Conteúdo: Meus Protocolos (Marketplace) -->
-        <div id="my-protocols-content" class="hidden" style="margin-bottom: 5rem; padding: 1.5rem;">
-            <header style="text-align: left; margin-bottom: 2rem;">
-                <h2 class="glow-text" style="font-size: 1.8rem;">Meus Protocolos</h2>
-                <p class="subtitle">Protocolos Elite que você adquiriu</p>
-            </header>
-            <div id="my-protocols-list" class="protocol-list">
-                <div class="empty-state" style="padding: 2rem;">
-                    <p class="subtitle">Você ainda não adquiriu nenhum protocolo elite.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Estado: Sem treino -->
-        <div id="empty-state" class="empty-state">
-            <div class="empty-icon">🏋️</div>
-            <h3>Nenhum treino disponível</h3>
-            <p class="subtitle">Seu Personal ainda não enviou um treino para este dia.</p>
-        </div>
-
-        <!-- Treino do Dia -->
-        <main id="workout-content" class="hidden">
-            <div id="challenge-container"></div>
-            <!-- Cardio Highlights -->
-            <section id="cardio-content" class="glass-card cardio-section hidden" style="margin-bottom: 1.5rem;">
-                <h3 style="margin-bottom: 0.5rem;">🏃 Seu Cardio de Hoje</h3>
-                <p id="cardio-info" style="font-size: 1.1rem; color: #fff;"></p>
+            <!-- Aba: Feed -->
+            <section id="feed-content" class="tab-content hidden">
+                <header class="section-header">
+                    <h2>Feed Social 📸</h2>
+                    <button class="btn-success-small" onclick="showPostModal()">Postar +</button>
+                </header>
+                <div id="feed-list" class="feed-list"></div>
             </section>
 
-            <section id="workout-exercises">
-                <!-- Exercícios renderizados dinamicamente -->
+            <!-- Aba: Meus Protocolos -->
+            <section id="my-protocols-content" class="tab-content hidden">
+                <h2>Meus Protocolos 📂</h2>
+                <div id="my-protocols-list"></div>
             </section>
 
-            <div class="progress-bar-container glass-card">
-                <p>Progresso do Treino</p>
-                <div class="progress-track">
-                    <div id="progress-fill" class="progress-fill"></div>
+            <!-- Aba: Explorar -->
+            <section id="discover-content" class="tab-content hidden">
+                <div id="trainer-grid" class="trainer-grid"></div>
+                <div id="trainer-details" class="hidden">
+                    <button class="btn-cancel" onclick="hideTrainerDetails()">← Voltar</button>
+                    <div id="selected-trainer-info"></div>
+                    <div id="protocol-list"></div>
                 </div>
-                <p id="progress-text" class="subtitle">0 de 0 concluídos</p>
-            </div>
-
-            <button id="finish-btn" class="btn-success" onclick="finishWorkout()">
-                Finalizar Treino 🔥
-            </button>
+            </section>
         </main>
 
-        <!-- Navegação Inferior Aluno -->
         <nav class="student-nav">
-            <button id="tab-workout" class="student-nav-btn active" onclick="switchStudentTab('workout')">
-                <span>🏋️</span>
-                Treino
-            </button>
-            <button id="tab-stats" class="student-nav-btn" onclick="switchStudentTab('stats')">
-                <span>📈</span>
-                Evolução
-            </button>
-            <button id="tab-my-protocols" class="student-nav-btn" onclick="switchStudentTab('my-protocols')">
-                <span>📂</span>
-                Meus
-            </button>
-            <button id="tab-discover" class="student-nav-btn" onclick="switchStudentTab('discover')">
-                <span>🔥</span>
-                Explorar
-            </button>
-            <button id="tab-feed" class="student-nav-btn" onclick="switchStudentTab('feed')">
-                <span>📸</span>
-                Feed
-            </button>
+            <button id="tab-workout" class="student-nav-btn active" onclick="switchStudentTab('workout')"><span>🏋️</span><small>Treino</small></button>
+            <button id="tab-stats" class="student-nav-btn" onclick="switchStudentTab('stats')"><span>📈</span><small>Evolução</small></button>
+            <button id="tab-feed" class="student-nav-btn" onclick="switchStudentTab('feed')"><span>📸</span><small>Feed</small></button>
+            <button id="tab-my-protocols" class="student-nav-btn" onclick="switchStudentTab('my-protocols')"><span>📂</span><small>Meus</small></button>
+            <button id="tab-discover" class="student-nav-btn" onclick="switchStudentTab('discover')"><span>🔥</span><small>Elite</small></button>
         </nav>
     </div>
 
-    <!-- MODAL UPGRADE PREMIUM -->
-    <div id="modal-upgrade" class="master-modal hidden">
-        <div class="modal-content" style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: 1rem;">💎</div>
-            <h2 class="glow-text" style="margin-bottom: 0.5rem;">Seja Vitin Pro</h2>
-            <p id="upgrade-context" class="subtitle" style="margin-bottom: 2rem;">Você já treinou muito! Não perca sua evolução.</p>
-            
-            <div class="benefit-item"><span>✅</span> <div><b>Gráficos de Evolução</b>: Veja sua força aumentando dia após dia.</div></div>
-            <div class="benefit-item"><span>✅</span> <div><b>Deload Inteligente</b>: Ajuste automático baseado no seu sono.</div></div>
-            <div class="benefit-item"><span>✅</span> <div><b>Saúde Integrada</b>: Calorias do Google Fit / Apple Health.</div></div>
-            <div class="benefit-item"><span>✅</span> <div><b>Histórico Infinito</b>: Todo o seu legado salvo para sempre.</div></div>
+    <!-- Modais -->
+    <div id="modal-anamnesis" class="modal-overlay hidden">
+        <div class="modal-content glass-card" style="margin-bottom: 90px;">
+            <h3>Vamos decolar! 🚀</h3>
+            <p class="subtitle">Complete seu perfil para melhores resultados.</p>
+            <div class="anamnesis-form" style="margin-top: 1rem; text-align: left;">
+                <label>Peso (kg)</label><input type="number" id="q-weight" class="feedback-input">
+                <label>Altura (cm)</label><input type="number" id="q-height" class="feedback-input">
+                <label>Objetivo</label>
+                <select id="q-goal" class="feedback-input" style="width:100%;">
+                    <option value="perda">Perder Peso</option>
+                    <option value="ganho">Ganhar Massa</option>
+                    <option value="cond">Condicionamento</option>
+                </select>
+                <button class="btn-success full-width" style="margin-top: 1.5rem;" onclick="submitAnamnesis()">Começar Agora! 🔥</button>
+            </div>
+        </div>
+    </div>
 
-            <button class="btn-premium" onclick="upgradeToPremium()">Desbloquear meu progresso 🚀</button>
-            <button class="btn-cancel" onclick="closeUpgradeModal()" style="width: 100%; margin-top: 1rem; border: none;">Talvez mais tarde</button>
+    <div id="modal-upgrade" class="master-modal hidden">
+        <div class="modal-content">
+            <div style="font-size: 3rem;">💎</div>
+            <h2>Vitin Pro</h2>
+            <p id="upgrade-context" class="subtitle">Desbloqueie todo o seu potencial.</p>
+            <button class="btn-premium full-width" onclick="upgradeToPremium()">Liberar Acesso Pro 🚀</button>
+            <button class="btn-cancel full-width" onclick="closeUpgradeModal()">Mais tarde</button>
+        </div>
+    </div>
+
+    <div id="modal-health" class="modal-overlay hidden">
+        <div class="modal-content glass-card">
+            <div class="premium-tag">PRO</div>
+            <h3>Conectar Relógio ⌚</h3>
+            <p class="subtitle">Sincronize calorias reais (Apple/Garmin).</p>
+            <button class="btn-success full-width" onclick="upgradeToPremium()">Ativar Agora ✨</button>
+            <button class="btn-primary full-width" style="background:transparent;" onclick="document.getElementById('modal-health').classList.add('hidden')">Voltar</button>
+        </div>
+    </div>
+
+    <div id="student-selector" class="modal-overlay hidden">
+        <div class="modal-content glass-card">
+            <h3>Selecione seu Nome</h3>
+            <div id="student-btns"></div>
         </div>
     </div>
 
     <script src="/muscle-icons.js?v=2.2"></script>
-    <script src="/aluno.js?v=2.2"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(reg => console.log('PWA: Aluno pronto!', reg.scope))
-                    .catch(err => console.log('PWA: Erro aluno', err));
-            });
-        }
-    </script>
+    <script src="/aluno.js?v=2.3"></script>
 </body>
 </html>

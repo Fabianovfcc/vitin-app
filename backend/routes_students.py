@@ -79,3 +79,18 @@ def track_analytics():
     # Por enquanto apenas logamos no servidor, mas poderíamos salvar numa tabela 'events'
     print(f"ANALYTICS: Evento '{data.get('event_type')}' do aluno {data.get('student_id')}")
     return jsonify({"status": "captured"})
+
+@students_bp.route('/api/students/profile', methods=['PUT', 'POST'])
+def update_student_profile():
+    data = request.json
+    student_id = data.get('id')
+    weight = data.get('weight')
+    height = data.get('height')
+    goal = data.get('goal')
+    
+    conn = get_db_connection()
+    conn.execute('UPDATE students SET weight = ?, height = ?, goal = ?, anamnesis_done = 1 WHERE id = ?', 
+                 (weight, height, goal, student_id))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "updated"})

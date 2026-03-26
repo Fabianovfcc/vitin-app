@@ -27,7 +27,9 @@ def init_db():
             gym_id INTEGER,
             age TEXT,
             weight TEXT,
+            height TEXT,
             goal TEXT,
+            anamnesis_done INTEGER DEFAULT 0,
             status TEXT DEFAULT 'active',
             plan_type TEXT DEFAULT 'free',
             subscription_expires_at TEXT,
@@ -190,7 +192,9 @@ def init_db():
     add_col_if_missing("students", "gym_id", "INTEGER")
     add_col_if_missing("students", "age", "TEXT")
     add_col_if_missing("students", "weight", "TEXT")
+    add_col_if_missing("students", "height", "TEXT")
     add_col_if_missing("students", "goal", "TEXT")
+    add_col_if_missing("students", "anamnesis_done", "INTEGER DEFAULT 0")
     add_col_if_missing("students", "plan_type", "TEXT DEFAULT 'free'")
     add_col_if_missing("students", "subscription_expires_at", "TEXT")
     add_col_if_missing("students", "access_token", "TEXT UNIQUE")
@@ -201,6 +205,11 @@ def init_db():
     add_col_if_missing("trainers", "gym_id", "INTEGER")
     add_col_if_missing("trainers", "whatsapp", "TEXT")
     add_col_if_missing("trainers", "status", "TEXT DEFAULT 'active'")
+    
+    # Feed
+    add_col_if_missing("feed_posts", "visibility", "TEXT DEFAULT 'public'")
+    add_col_if_missing("feed_posts", "trainer_id", "INTEGER")
+    add_col_if_missing("feed_posts", "gym_id", "INTEGER")
 
     # Seed data
     cursor.execute('SELECT COUNT(*) FROM students')
