@@ -1,5 +1,5 @@
 import os
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, request
 from dotenv import load_dotenv
 
 # Importar Blueprints
@@ -27,6 +27,16 @@ app.register_blueprint(super_admin_bp, url_prefix='/api/super')
 # ────────────────────────────────────────
 # ROTAS DE PÁGINAS ESTÁTICAS
 # ────────────────────────────────────────
+@app.after_request
+def add_header(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+    # Forçar no-cache para evitar problemas relatados
+    if 'api' in request.path:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    return response
+
 @app.route('/')
 def index():
     return send_from_directory(app.static_folder, 'index.html')
