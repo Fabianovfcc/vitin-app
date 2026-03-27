@@ -55,13 +55,23 @@ def mark_notifications_read():
 @require_auth
 def unread_count(role):
     student_id = request.args.get('student_id')
-    query = supabase.table('notifications').select('id', count='exact').eq('target_role', role).eq('is_read', False)
-    if role == 'professor' and g.user_role == 'professor':
-        query = query.eq('trainer_id', g.user_id)
-    if role == 'aluno' and student_id:
-        query = query.eq('student_id', student_id)
-    result = query.execute()
-    return jsonify({"count": result.count if result.count is not None else 0})
+    try:
+        query = supabase.table('notifications').select('id', count='exact').eq('target_role', role).eq('is_read', False)
+        if role == 'professor' and g.user_role == 'professor':
+            # Tenta filtrar por trainer_id, se a coluna não existir, o try intercepta
+            query = query.eq('trainer_id', g.user_id)
+        if role == 'aluno' and student_id:
+            query = query.eq('student_id', student_id)
+        result = query.execute()
+        return jsonify({"count": result.count if result.count is not None else 0})
+    except Exception as e:
+        print(f"Aviso: Tabela notifications pode estar sem trainer_id: {e}")
+        # Fallback: busca sem o filtro de isolamento se a coluna falhar
+        query = supabase.table('notifications').select('id', count='exact').eq('target_role', role).eq('is_read', False)
+        if role == 'aluno' and student_id:
+            query = query.eq('student_id', student_id)
+        result = query.execute()
+        return jsonify({"count": result.count if result.count is not None else 0})
 
 @admin_bp.route('/api/challenges/active', methods=['GET', 'POST', 'DELETE'])
 @require_auth

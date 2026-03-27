@@ -42,9 +42,14 @@ def save_workout():
         supabase.table('students').update({'last_workout': date}).eq('id', student_id).execute()
         supabase.table('workout_progress').delete().eq('student_id', student_id).execute()
 
+        # Notificar aluno (precisa buscar trainer_id para futura consistência)
+        student_data = supabase.table('students').select('trainer_id').eq('id', student_id).execute()
+        trainer_id = student_data.data[0]['trainer_id'] if student_data.data else None
+
         supabase.table('notifications').insert({
             'target_role': 'aluno',
             'student_id': student_id,
+            'trainer_id': trainer_id,
             'student_name': student_name,
             'message': 'Seu Personal atualizou sua ficha de treino!',
             'type': 'workout_updated',
@@ -137,9 +142,14 @@ def finish_workout():
     msg = f'{student_name} finalizou o treino de {day.upper()} ({pct}% completo)'
     if cardio: msg += f' + Cardio: {cardio}'
     
+    # Notificar professor com isolamento
+    student_data = supabase.table('students').select('trainer_id').eq('id', student_id).execute()
+    trainer_id = student_data.data[0]['trainer_id'] if student_data.data else None
+    
     supabase.table('notifications').insert({
         'target_role': 'professor',
         'student_id': student_id,
+        'trainer_id': trainer_id,
         'student_name': student_name,
         'message': msg,
         'type': 'workout_finished',
