@@ -1,5 +1,6 @@
 let currentPin = '';
 let userPhone = '';
+let currentRole = 'aluno';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const tempToken = localStorage.getItem('temp_access_token');
@@ -9,9 +10,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (resp.ok) {
                 const student = await resp.json();
                 if (student.whatsapp) {
-                    // Pre-fill phone if available (logic to separate country code might be needed)
-                    // For now just put in the input
                     const phoneInput = document.getElementById('phone-input');
+                    // Tenta extrair o número sem +55 se for BR
                     phoneInput.value = student.whatsapp.replace(/^\+55/, '');
                     showToast(`Olá ${student.name.split(' ')[0]}! Acesse seu treino.`);
                 }
@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (e) {}
     }
     
-    // Verificar se biometria está disponível e configurada
     if (window.PublicKeyCredential) {
         if (localStorage.getItem('biometry_configured') === 'true') {
             document.getElementById('biometry-login-btn').style.display = 'block';
@@ -27,19 +26,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-async function loginWithBiometry() {
-    showToast("Validando biometria...");
-    await new Promise(r => setTimeout(r, 1000));
+window.switchTab = (role) => {
+    currentRole = role;
+    const isAlu = role === 'aluno';
     
-    // Na vida real, verificamos o desafio criptográfico aqui
-    // Por enquanto, se o usuário ativou, deixamos entrar se houver sessão cacheada
-    const studentId = localStorage.getItem('student_id');
-    if (studentId) {
-        showToast("Bem-vindo de volta! ✅");
-        setTimeout(() => { window.location.href = 'aluno.html'; }, 500);
+    // UI Tabs
+    document.getElementById('tab-aluno').style.background = isAlu ? 'var(--primary)' : 'transparent';
+    document.getElementById('tab-aluno').style.color = isAlu ? 'white' : 'var(--text-secondary)';
+    document.getElementById('tab-prof').style.background = !isAlu ? 'var(--primary)' : 'transparent';
+    document.getElementById('tab-prof').style.color = !isAlu ? 'white' : 'var(--text-secondary)';
+    
+    // Labels
+    document.getElementById('welcome-msg').innerText = isAlu ? 'Bem-vindo!' : 'Painel do Professor';
+    document.getElementById('subtitle-msg').innerText = isAlu ? 
+        'Insira seu número para acessar seus treinos.' : 
+        'Identifique-se para gerenciar seus alunos.';
+    
+    // Password field for Professor
+    document.getElementById('prof-password-group').style.display = isAlu ? 'none' : 'flex';
+    document.getElementById('main-login-btn').innerText = isAlu ? 'Continuar' : 'Acessar Painel 🚀';
+};
+
+window.handleContinue = () => {
+    if (currentRole === 'aluno') {
+        goToPin();
     } else {
-        showToast("Erro: Faça login com PIN primeiro.");
+        handleProfessorLogin();
     }
+};
+
+async function handleProfessorLogin() {
+    const rawPhone = document.getElementById('phone-input').value;
+    const country = document.getElementById('country-code').value;
+    const password = document.getElementById('password-input').value;
+    
+    if (rawPhone.length < 8 || !password) {
+        showToast("WhatsApp e Senha são obrigatórios!");
+        return;
+    }
+
+    const fullPhone = country + rawPhone.replace(/\D/g, '');
+    const compositeToken = `${fullPhone}:${password}`;
+
+    showToast("Autenticando...");
+    
+    // Armazena temporariamente para testar acesso
+    localStorage.setItem('adminToken', compositeToken);
+    
+    // Redireciona para index.html que fará a validação final
+    window.location.href = 'index.html';
 }
 
 function showToast(msg) {
@@ -60,9 +95,8 @@ async function goToPin() {
         return;
     }
 
-    userPhone = country + rawPhone;
+    userPhone = country + rawPhone.replace(/\D/g, '');
     
-    // Verificar se o usuário existe e se tem PIN
     try {
         const resp = await fetch('/api/auth/check-user', {
             method: 'POST',
@@ -136,9 +170,8 @@ async function handleLogin() {
         if (response.ok) {
             if (isSetupMode) {
                 showToast("PIN configurado! Entrando...");
-                // Após configurar, logamos automaticamente re-chamando o login ou usando dados retornados
                 isSetupMode = false;
-                handleLogin(); // Tenta logar agora com o PIN recém criado
+                handleLogin(); 
                 return;
             }
 
@@ -159,7 +192,6 @@ async function handleLogin() {
     }
 }
 
-// Suporte a teclado físico
 document.addEventListener('keydown', (e) => {
     if (document.getElementById('pin-section').style.display === 'block') {
         if (e.key >= '0' && e.key <= '9') addPin(e.key);

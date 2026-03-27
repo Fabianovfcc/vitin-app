@@ -58,13 +58,17 @@ async function checkInitialAuth() {
 }
 
 window.login = () => {
+    const whatsapp = document.getElementById('admin-whatsapp').value.replace(/\D/g, '');
     const pass = document.getElementById('admin-password').value;
-    if (pass) {
-        localStorage.setItem('adminToken', pass);
-        adminToken = pass;
-        location.reload(); // Recarrega para aplicar o token em todas as chamadas
+    
+    if (whatsapp && pass) {
+        // Armazena token composto para identificação única no backend
+        const compositeToken = `${whatsapp}:${pass}`;
+        localStorage.setItem('adminToken', compositeToken);
+        adminToken = compositeToken;
+        location.reload(); 
     } else {
-        alert('Digite a senha!');
+        alert('Digite seu WhatsApp e senha!');
     }
 };
 
@@ -223,13 +227,19 @@ function renderStudents(students) {
         const initial = student.name ? student.name.charAt(0).toUpperCase() : '?';
         const lastWorkout = student.last_workout || 'Aguardando...';
         
+        // Link direto do aluno para o WhatsApp
+        const studentLink = `${window.location.origin}/aluno/${student.access_token}`;
+        const waMsg = encodeURIComponent(`Olá ${student.name.split(' ')[0]}! Aqui está seu link de acesso exclusivo ao Vitin App: ${studentLink}\n\nBons treinos! 💪🚀`);
+        const waLink = `https://wa.me/${student.whatsapp?.replace(/\D/g, '')}?text=${waMsg}`;
+
         card.innerHTML = `
             <div class="student-avatar">${initial}</div>
             <h3 style="font-size: 1rem; margin-bottom: 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${student.name}</h3>
-            <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 1rem;">${lastWorkout}</p>
+            <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 1rem;">Último: ${lastWorkout}</p>
             
-            <div style="display:flex; justify-content:center; gap:0.5rem;">
-                <button onclick="event.stopPropagation(); deleteStudent(${student.id})" class="icon-btn" style="font-size:1rem; opacity:0.5;">🗑️</button>
+            <div class="student-actions" style="display:flex; justify-content:center; gap:0.8rem; margin-top: auto;">
+                <button onclick="event.stopPropagation(); window.open('${waLink}', '_blank')" class="action-btn-mini" title="Enviar Link WhatsApp">📲</button>
+                <button onclick="event.stopPropagation(); deleteStudent(${student.id})" class="action-btn-mini" title="Excluir Aluno" style="opacity:0.5;">🗑️</button>
             </div>
         `;
         card.onclick = () => openWorkoutCreator(student);
@@ -303,11 +313,11 @@ function setupEventListeners() {
         loadProfile();
     };
 
-    // Day Tabs
-    document.querySelectorAll('.day-tab').forEach(tab => {
+    // Day Tabs Elite
+    document.querySelectorAll('.day-tab-elite').forEach(tab => {
         tab.onclick = () => {
             saveCurrentDayData();
-            document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.day-tab-elite').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             currentDay = tab.dataset.day;
             loadDayData();
@@ -415,7 +425,8 @@ async function openWorkoutCreator(student) {
     document.getElementById('workout-creator').classList.remove('hidden');
     
     currentDay = 'seg';
-    document.querySelectorAll('.day-tab').forEach(t => {
+    document.getElementById('current-student-avatar').innerText = student.name[0];
+    document.querySelectorAll('.day-tab-elite').forEach(t => {
         t.classList.remove('active');
         if(t.dataset.day === 'seg') t.classList.add('active');
     });
@@ -672,40 +683,51 @@ function renderExercises() {
     list.innerHTML = '';
     
     if (workoutExercises.length === 0) {
-        list.innerHTML = '<p class="subtitle" style="text-align:center; padding:2rem;">Nenhum exercício para este dia. Clique em "+" para adicionar.</p>';
+        list.innerHTML = `
+            <div class="empty-state animate-fade-in">
+                <div class="empty-icon">📂</div>
+                <h3 class="subtitle">Nenhum exercício para este dia</h3>
+                <p class="subtitle" style="font-size:0.8rem;">Clique no botão abaixo para começar a montar o treino.</p>
+            </div>
+        `;
+        return;
     }
 
     workoutExercises.forEach((ex, index) => {
         const div = document.createElement('div');
-        div.className = 'exercise-item';
+        div.className = 'elite-exercise-card-premium animate-slide-up';
+        div.style.animationDelay = `${index * 0.05}s`;
         div.innerHTML = `
-            <div class="exercise-header">
-                <img src="${ex.image || ''}" class="exercise-thumb" onerror="this.src='https://placehold.co/60x60/1a1a1a/ffffff?text=X'">
-                <input type="text" value="${ex.name}" class="transparent-input" onchange="updateEx(${index}, 'name', this.value)">
-                <button onclick="removeEx(${index})" class="icon-btn">×</button>
+            <div class="elite-ex-header">
+                <img src="${ex.image || ''}" class="elite-ex-thumb" onerror="this.src='https://placehold.co/60x60/1a1a1a/ffffff?text=X'">
+                <input type="text" value="${ex.name}" class="elite-ex-name-input" onchange="updateEx(${index}, 'name', this.value)">
+                <button onclick="removeEx(${index})" class="elite-remove-btn" title="Remover exercise">×</button>
             </div>
-            <div class="inputs-row">
-                <div class="input-group">
+            
+            <div class="elite-inputs-grid">
+                <div class="elite-input-group">
                     <label>Séries</label>
-                    <input type="number" value="${ex.sets}" onchange="updateEx(${index}, 'sets', this.value)">
+                    <input type="number" value="${ex.sets}" class="elite-input" onchange="updateEx(${index}, 'sets', this.value)">
                 </div>
-                <div class="input-group">
+                <div class="elite-input-group">
                     <label>Reps</label>
-                    <input type="number" value="${ex.reps}" onchange="updateEx(${index}, 'reps', this.value)">
+                    <input type="number" value="${ex.reps}" class="elite-input" onchange="updateEx(${index}, 'reps', this.value)">
                 </div>
-                <div class="input-group">
+                <div class="elite-input-group">
                     <label>Carga (kg)</label>
-                    <input type="number" value="${ex.load}" onchange="updateEx(${index}, 'load', this.value)">
+                    <input type="number" value="${ex.load}" class="elite-input" onchange="updateEx(${index}, 'load', this.value)">
                 </div>
             </div>
-            <div class="input-group" style="margin-top: 0.5rem;">
-                <label>Observação (Instruções detalhadas)</label>
-                <input type="text" value="${ex.obs || ''}" placeholder="Ex: Cadência 3131, pico de contração..." onchange="updateEx(${index}, 'obs', this.value)">
+
+            <div class="elite-obs-group">
+                <label class="elite-input-group"><span style="font-size:0.75rem; color:var(--elite-text-dim); font-weight:600; text-transform:uppercase; margin-bottom:6px; display:block;">Observações</span></label>
+                <input type="text" value="${ex.obs || ''}" class="elite-obs-input" placeholder="Ex: Cadência 3131, pico de contração..." onchange="updateEx(${index}, 'obs', this.value)">
             </div>
+
             ${ex.feedback ? `
-            <div class="student-feedback-alert" style="margin-top: 0.8rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.6rem; border-radius: 8px; font-size: 0.85rem;">
-                <span style="color: #f59e0b;">💬 <strong>Feedback do Aluno:</strong></span>
-                <p style="margin-top: 5px; color: #fff;">${ex.feedback}</p>
+            <div class="student-feedback-alert" style="margin-top: 1.2rem; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); padding: 0.8rem; border-radius: 12px; font-size: 0.8rem;">
+                <span style="color: #f59e0b; font-weight:700;">💬 Feedback do Aluno:</span>
+                <p style="margin-top: 5px; color: #fff; opacity:0.9;">${ex.feedback}</p>
             </div>` : ''}
         `;
         list.appendChild(div);
@@ -911,17 +933,67 @@ async function uploadImage() {
     return null;
 }
 
-window.saveProfile = async () => {
-    // Primeiro faz upload se houver novo arquivo
-    const uploadedUrl = await uploadImage();
-    const currentImageUrl = document.getElementById('prof-image').value;
+window.openTrainerProfile = async () => {
+    try {
+        const res = await fetch('/api/trainer/profile', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('prof-name').value = data.name || '';
+            document.getElementById('prof-cref').value = data.cref || '';
+            document.getElementById('prof-specialty').value = data.specialty || '';
+            document.getElementById('prof-bio').value = data.bio || '';
+            document.getElementById('prof-img-preview').src = data.image || 'https://placehold.co/200x200/1a1a1a/ffffff?text=PERFIL';
+            document.getElementById('modal-trainer-profile').classList.remove('hidden');
+        } else if (res.status === 401) {
+            handleAuthError();
+        }
+    } catch (e) {
+        alert('Erro ao carregar perfil.');
+    }
+};
 
+window.closeTrainerProfile = () => {
+    document.getElementById('modal-trainer-profile').classList.add('hidden');
+};
+
+window.previewProfImg = (input) => {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_DIM = 400;
+                let width = img.width;
+                let height = img.height;
+                if (width > height) {
+                    if (width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; }
+                } else {
+                    if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                document.getElementById('prof-img-preview').src = dataUrl;
+                document.getElementById('prof-img-preview').dataset.base64 = dataUrl;
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+};
+
+window.saveTrainerProfile = async () => {
     const data = {
         name: document.getElementById('prof-name').value,
         cref: document.getElementById('prof-cref').value,
         specialty: document.getElementById('prof-specialty').value,
         bio: document.getElementById('prof-bio').value,
-        image: uploadedUrl || currentImageUrl
+        image: document.getElementById('prof-img-preview').dataset.base64 || document.getElementById('prof-img-preview').src
     };
 
     try {
@@ -933,9 +1005,9 @@ window.saveProfile = async () => {
             },
             body: JSON.stringify(data)
         });
-
         if (res.ok) {
-            alert('Perfil atualizado com sucesso! 💪');
+            alert('Perfil atualizado com sucesso! ✨');
+            closeTrainerProfile();
         } else {
             alert('Erro ao salvar perfil.');
         }
@@ -943,6 +1015,19 @@ window.saveProfile = async () => {
         alert('Erro de conexão.');
     }
 };
+
+window.logout = () => {
+    if (confirm('Deseja realmente sair?')) {
+        localStorage.removeItem('adminToken');
+        location.reload();
+    }
+};
+
+function handleAuthError() {
+    localStorage.removeItem('adminToken');
+    alert('Sua sessão expirou. Por favor, faça login novamente.');
+    location.reload();
+}
 
 async function loadTrainerFeed() {
     const container = document.getElementById('trainer-feed-container');

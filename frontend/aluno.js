@@ -1080,12 +1080,12 @@ async function initStudentSelector() {
     if (selector) selector.classList.remove('hidden');
     
     try {
-        const res = await fetch(`/api/workouts/students/all?t=${Date.now()}`);
+        const res = await fetch(`/api/students/all?t=${Date.now()}`); // Usando a rota central que agora será filtrada ou master
         const students = await res.json();
         const btnContainer = document.getElementById('student-btns');
         if (btnContainer) {
             btnContainer.innerHTML = students.map(s => {
-                const targetToken = s.token || s.id;
+                const targetToken = s.access_token || s.token || s.id;
                 return `
                     <button class="btn-primary" onclick="window.location.href='/aluno/${targetToken}'" style="width:100%; margin-bottom:8px; display:block; padding:15px; border-radius:12px;">
                         ${s.name} (${s.trainer_name || 'Personal Vitin'})
@@ -1095,5 +1095,32 @@ async function initStudentSelector() {
         }
     } catch (e) {
         if (selector) selector.innerHTML = '<p style="color:#ef4444">Nenhum aluno cadastrado no sistema ainda.</p>';
+    }
+}
+
+// ────────────────────────────────────────
+// TRATAMENTO DE ACESSO INVÁLIDO / LOOP
+// ────────────────────────────────────────
+function showInvalidAccess() {
+    console.warn("Acesso negado ou erro de token. Limpando sessão e redirecionando...");
+    
+    // Evitar loop infinito: Se já estamos vindo do login e falhou, não redireciona de novo imediatamente sem avisar
+    const failedRecently = sessionStorage.getItem('login_failed_retry');
+    
+    localStorage.removeItem('student_id');
+    localStorage.removeItem('access_token');
+    
+    if (failedRecently) {
+        document.body.innerHTML = `
+            <div style="height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; background:#0a0a0f; color:white; padding:2rem; text-align:center;">
+                <h2 style="color:#ef4444;">Ops! Algo deu errado. ❌</h2>
+                <p style="margin:1rem 0;">Não conseguimos validar seu acesso. Verifique com seu professor se seu cadastro está correto.</p>
+                <button onclick="sessionStorage.removeItem('login_failed_retry'); window.location.href='index.html'" class="btn-primary" style="padding:12px 24px; border-radius:12px; border:none; background:#8b5cf6; color:white; font-weight:600;">Voltar ao Início</button>
+            </div>
+        `;
+    } else {
+        sessionStorage.setItem('login_failed_retry', 'true');
+        alert("Sua sessão expirou ou o link é inválido. Por favor, faça login novamente.");
+        window.location.href = 'login.html';
     }
 }

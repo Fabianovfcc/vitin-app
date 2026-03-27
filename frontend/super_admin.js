@@ -99,19 +99,25 @@ async function loadTrainersDetailed() {
         });
         const trainers = await res.json();
         const tbody = document.getElementById('trainers-table-body');
-        tbody.innerHTML = trainers.map(t => `
+        tbody.innerHTML = trainers.map(t => {
+            const loginUrl = `${window.location.origin}/login.html`;
+            const waMsg = encodeURIComponent(`Olá ${t.name}! Seu acesso ao Vitin App Elite está pronto.\n\n🔗 Link: ${loginUrl}\n📱 WhatsApp: ${t.whatsapp}\n🔑 Senha: ${t.password || 'Cadastrada por você'}\n\nBons treinos! 🚀`);
+            const waLink = `https://wa.me/${t.whatsapp?.replace(/\D/g, '')}?text=${waMsg}`;
+
+            return `
             <tr>
                 <td><strong>${t.name}</strong></td>
                 <td>${t.gym_name || 'Autônomo'}</td>
                 <td>${t.student_count} alunos</td>
                 <td><span class="status-badge active">${t.status || 'Ativo'}</span></td>
                 <td>
-                    <button class="icon-btn" onclick="openTrainerModal(${JSON.stringify(t).replace(/"/g, '&quot;')})">✏️</button>
-                    <button class="icon-btn" onclick="viewTrainerStudents(${t.id})">👥</button>
-                    <button class="icon-btn" style="color:#ef4444" onclick="deleteTrainer(${t.id})">🗑️</button>
+                    <button class="icon-btn" onclick="openTrainerModal(${JSON.stringify(t).replace(/"/g, '&quot;')})" title="Editar">✏️</button>
+                    <button class="icon-btn" onclick="viewTrainerStudents(${t.id})" title="Ver Alunos">👥</button>
+                    <button class="icon-btn" onclick="window.open('${waLink}', '_blank')" title="Enviar Acesso WhatsApp">📲</button>
+                    <button class="icon-btn" style="color:#ef4444" onclick="deleteTrainer(${t.id})" title="Excluir">🗑️</button>
                 </td>
             </tr>
-        `).join('');
+        `; }).join('');
     } catch (e) { console.error(e); }
 }
 
@@ -268,18 +274,24 @@ async function loadAllStudents() {
 
 function renderAllStudents(students) {
     const tbody = document.getElementById('all-students-table-body');
-    tbody.innerHTML = students.map(s => `
+    tbody.innerHTML = students.map(s => {
+        const studentLink = `${window.location.origin}/aluno/${s.access_token}`;
+        const waMsg = encodeURIComponent(`Olá ${s.name.split(' ')[0]}! Seu link de acesso exclusivo ao Vitin App: ${studentLink}\n\nBons treinos! 💪`);
+        const waLink = `https://wa.me/${s.whatsapp?.replace(/\D/g, '')}?text=${waMsg}`;
+
+        return `
         <tr>
             <td>${s.name}</td>
-            <td>${s.whatsapp}</td>
+            <td>${s.whatsapp || '---'}</td>
             <td>${s.trainer_name || 'Sem Professor'}</td>
             <td>${s.status}</td>
             <td>
-                <button class="icon-btn" onclick="openStudentModal(${JSON.stringify(s).replace(/"/g, '&quot;')})">✏️</button>
-                <button class="icon-btn" style="color:#ef4444" onclick="deleteStudentGlobal(${s.id})">🗑️</button>
+                <button class="icon-btn" onclick="openStudentModal(${JSON.stringify(s).replace(/"/g, '&quot;')})" title="Editar">✏️</button>
+                <button class="icon-btn" onclick="window.open('${waLink}', '_blank')" title="Enviar Link WhatsApp">📲</button>
+                <button class="icon-btn" style="color:#ef4444" onclick="deleteStudentGlobal(${s.id})" title="Excluir">🗑️</button>
             </td>
         </tr>
-    `).join('');
+    `; }).join('');
 }
 
 window.filterStudents = (val) => {

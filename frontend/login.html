@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Login | Vitin App</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/styles.css?v=2.6">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -79,14 +79,25 @@
             box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.1);
         }
 
+        .country-select-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding-right: 10px;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 85px;
+        }
+
         .country-select {
             background: none;
             border: none;
             color: var(--text-main);
             font-size: 16px;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             outline: none;
+            appearance: none;
+            -webkit-appearance: none;
         }
 
         input {
@@ -189,20 +200,37 @@
 </head>
 <body>
     <div class="login-container" id="phone-section">
-        <div class="logo">VITIN APP</div>
-        <div class="welcome-text">Bem-vindo!</div>
-        <div class="subtitle">Insira seu número para acessar seus treinos.</div>
+        <div class="logo">VITIN APP ELITE</div>
         
-        <div class="input-group">
-            <select class="country-select" id="country-code">
-                <option value="+55">🇧🇷 +55</option>
-                <option value="+1">🇺🇸 +1</option>
-                <option value="+351">🇵🇹 +351</option>
-            </select>
-            <input type="tel" id="phone-input" placeholder="DDD + Número" maxlength="11">
+        <!-- Toggle Aluno/Professor -->
+        <div class="login-tabs" style="display: flex; gap: 10px; margin-bottom: 2rem; background: var(--card-bg); padding: 5px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+            <button id="tab-aluno" class="tab-btn active" style="flex: 1; padding: 10px; border: none; background: var(--primary); color: white; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.3s;" onclick="switchTab('aluno')">Aluno</button>
+            <button id="tab-prof" class="tab-btn" style="flex: 1; padding: 10px; border: none; background: transparent; color: var(--text-secondary); border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.3s;" onclick="switchTab('prof')">Professor</button>
         </div>
 
-        <button class="btn-primary" onclick="goToPin()">Continuar</button>
+        <div class="welcome-text" id="welcome-msg">Bem-vindo!</div>
+        <div class="subtitle" id="subtitle-msg">Insira seu número para acessar seus treinos.</div>
+        
+        <div class="input-group">
+            <div class="country-select-wrapper">
+                <select class="country-select" id="country-code">
+                    <option value="+55">🇧🇷 +55</option>
+                    <option value="+1">🇺🇸 +1</option>
+                    <option value="+351">🇵🇹 +351</option>
+                    <option value="+44">🇬🇧 +44</option>
+                </select>
+                <span style="font-size: 10px; opacity: 0.5;">▼</span>
+            </div>
+            <input type="tel" id="phone-input" placeholder="WhatsApp com DDD" maxlength="15">
+        </div>
+
+        <!-- Campo de Senha (Visível apenas para Professor) -->
+        <div id="prof-password-group" class="input-group hidden" style="margin-top: -12px; display: none;">
+            <span style="margin-right: 8px; opacity: 0.5;">🔒</span>
+            <input type="password" id="password-input" placeholder="Sua senha secreta">
+        </div>
+
+        <button class="btn-primary" id="main-login-btn" onclick="handleContinue()">Continuar</button>
         
         <button id="biometry-login-btn" class="btn-primary" style="margin-top: 12px; background: rgba(255,255,255,0.05); color: var(--text-main); display: none;" onclick="loginWithBiometry()">
             <span style="margin-right: 8px;">👤</span> Acessar com Face ID
@@ -241,6 +269,7 @@
 
     <div id="toast" class="toast"></div>
 
-    <script src="login.js?v=2.4"></script>
+    <script src="login.js?v=2.5"></script>
+    <script src="premium-features.js?v=2.5"></script>
 </body>
 </html>

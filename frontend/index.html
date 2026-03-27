@@ -19,7 +19,7 @@
             }
         })();
     </script>
-    <link rel="stylesheet" href="/styles.css?v=2.2">
+    <link rel="stylesheet" href="/styles.css?v=2.5">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0a0a0f">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -56,44 +56,15 @@
         .hidden { display: none !important; }
     </style>
 </head>
-<body class="dark-theme">
-    <!-- TELA DE LOGIN UNIFICADA -->
-    <div id="login-screen">
-        <div class="glass-card login-card animate-fade-in">
-            <h1 class="premium-title" style="font-size: 2rem; margin-bottom: 0.5rem;">Vitin App Elite</h1>
-            <p class="premium-subtitle">Alta Performance em Gestão de Treinos</p>
-            
-            <div class="login-tabs">
-                <button id="tab-aluno" class="tab-btn active" onclick="switchLoginTab('aluno')">Sou Aluno</button>
-                <button id="tab-prof" class="tab-btn" onclick="switchLoginTab('prof')">Sou Professor</button>
-            </div>
-
-            <!-- Formulário Aluno -->
-            <div id="form-aluno" class="login-form">
-                <div class="input-group">
-                    <label>Seu WhatsApp</label>
-                    <input type="tel" id="student-whatsapp-login" placeholder="(00) 00000-0000" class="premium-input">
-                </div>
-                <button onclick="window.location.href='login.html'" class="btn-primary full-width">Acessar Meu Treino ⚡</button>
-                <p class="login-help">Acesse usando seu celular e PIN de segurança.</p>
-            </div>
-
-            <!-- Formulário Professor -->
-            <div id="form-prof" class="login-form hidden">
-                <div class="input-group">
-                    <label>Senha do Professor</label>
-                    <input type="password" id="admin-password" placeholder="Sua senha secreta" class="premium-input">
-                </div>
-                <button onclick="login()" class="btn-primary full-width">Acessar Painel Admin 🚀</button>
-                <p class="login-help">Acesso restrito para treinadores cadastrados.</p>
-            </div>
-
-            <!-- Botão de Instalação Nativa (Mobile) -->
-            <button id="pwa-install-btn" class="btn-primary hidden" style="margin-top: 2rem; border-color: #25d366; color: #25d366; background: rgba(37, 211, 102, 0.05);">
-                📲 Baixar Aplicativo Vitin
-            </button>
-        </div>
-    </div>
+    <script>
+        // PROTEÇÃO DE ACESSO ADMIN
+        // Se não houver token de admin, manda para o login unificado
+        (function() {
+            if (!localStorage.getItem('adminToken')) {
+                window.location.href = 'login.html';
+            }
+        })();
+    </script>
 
     <!-- APP PRINCIPAL (Oculto até login do professor) -->
     <div id="main-app-container" class="glass-container hidden">
@@ -102,10 +73,15 @@
                 <h1 class="glow-text">App Vitin</h1>
                 <p class="subtitle">Gestão de Treinos Premium</p>
             </div>
-            <button id="notif-bell" class="notif-bell" onclick="toggleNotifications()">
-                🔔
-                <span id="notif-badge" class="notif-badge hidden">0</span>
-            </button>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button class="prof-profile-btn" onclick="openTrainerProfile()">
+                    👤 <span>Meu Perfil</span>
+                </button>
+                <button id="notif-bell" class="notif-bell" onclick="toggleNotifications()">
+                    🔔
+                    <span id="notif-badge" class="notif-badge hidden">0</span>
+                </button>
+            </div>
         </header>
 
         <!-- Painel de Notificações -->
@@ -202,67 +178,90 @@
                 </div>
             </section>
 
-            <!-- Screen: Workout Creator (Hidden by default) -->
-            <section id="workout-creator" class="hidden">
-                <div class="header-action">
-                    <button id="close-creator" class="icon-btn">←</button>
-                    <h2>Montar Treino</h2>
+            <!-- Screen: Workout Creator (Premium Elite Layout) -->
+            <section id="workout-creator" class="hidden animate-slide-up">
+                <div class="elite-header-action">
+                    <button id="close-creator" class="elite-back-btn" onclick="closeWorkoutCreator()">
+                        <span class="icon">⟵</span>
+                        <span>Voltar</span>
+                    </button>
+                    <h2 class="glow-text">Montar Treino Elite</h2>
                 </div>
                 
-                <div id="selected-student-info" class="glass-card" style="display:flex; justify-content:space-between; align-items:center;">
-                    <p>Aluno: <span id="current-student-name">--</span></p>
-                    <button id="whatsapp-link-btn" class="btn-whatsapp" onclick="copyWhatsAppLink()">📲 Link WhatsApp</button>
+                <div id="selected-student-info" class="elite-student-card glass-card">
+                    <div class="student-meta">
+                        <div class="student-avatar" id="current-student-avatar">?</div>
+                        <div class="student-details">
+                            <h3 id="current-student-name">--</h3>
+                            <p class="subtitle">Estatísticas e Progressão</p>
+                        </div>
+                    </div>
+                    <button id="whatsapp-link-btn" class="btn-whatsapp-elite" onclick="copyWhatsAppLink()">
+                        <span class="icon">📲</span>
+                        <span>Link de Acesso</span>
+                    </button>
                 </div>
 
-                <!-- Seletor de Dia da Semana -->
-                <div class="day-selector-container">
-                    <div class="day-tabs">
-                        <button class="day-tab active" data-day="seg">SEG</button>
-                        <button class="day-tab" data-day="ter">TER</button>
-                        <button class="day-tab" data-day="qua">QUA</button>
-                        <button class="day-tab" data-day="qui">QUI</button>
-                        <button class="day-tab" data-day="sex">SEX</button>
-                        <button class="day-tab" data-day="sab">SAB</button>
-                        <button class="day-tab" data-day="dom">DOM</button>
+                <!-- Seletor de Dia da Semana (Apple Style) -->
+                <div class="elite-day-selector">
+                    <div class="day-tabs-scroll">
+                        <button class="day-tab-elite active" data-day="seg">SEG</button>
+                        <button class="day-tab-elite" data-day="ter">TER</button>
+                        <button class="day-tab-elite" data-day="qua">QUA</button>
+                        <button class="day-tab-elite" data-day="qui">QUI</button>
+                        <button class="day-tab-elite" data-day="sex">SEX</button>
+                        <button class="day-tab-elite" data-day="sab">SAB</button>
+                        <button class="day-tab-elite" data-day="dom">DOM</button>
                     </div>
                 </div>
 
-                <div id="copy-day-section" class="glass-card" style="margin-bottom: 1rem; padding: 0.8rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem;">
-                    <span>Copiar treino de outro dia:</span>
-                    <select id="copy-day-select" style="background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); padding: 4px; border-radius: 8px;">
-                        <option value="">Selecione...</option>
-                        <option value="seg">Segunda</option>
-                        <option value="ter">Terça</option>
-                        <option value="qua">Quarta</option>
-                        <option value="qui">Quinta</option>
-                        <option value="sex">Sexta</option>
-                        <option value="sab">Sábado</option>
-                        <option value="dom">Domingo</option>
-                    </select>
-                    <button onclick="copyWorkoutFromDay()" class="btn-primary" style="padding: 4px 10px; font-size: 0.75rem;">Copiar</button>
+                <div id="copy-day-section" class="elite-copy-card">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="opacity:0.7;">📋 Copiar de:</span>
+                        <select id="copy-day-select" class="elite-select">
+                            <option value="">Selecione...</option>
+                            <option value="seg">Segunda</option>
+                            <option value="ter">Terça</option>
+                            <option value="qua">Quarta</option>
+                            <option value="qui">Quinta</option>
+                            <option value="sex">Sexta</option>
+                            <option value="sab">Sábado</option>
+                            <option value="dom">Domingo</option>
+                        </select>
+                    </div>
+                    <button onclick="copyWorkoutFromDay()" class="btn-copy-elite">Copiar Agora</button>
                 </div>
 
-                <div id="exercises-list">
-                    <!-- Exercises added go here -->
+                <div id="exercises-list" class="elite-exercises-list">
+                    <!-- Cards de exercícios Elite -->
                 </div>
 
-                <!-- Seção de Cardio -->
-                <div class="glass-card cardio-section">
-                    <h3 class="section-title" style="font-size: 1.1rem; margin-bottom: 1rem;">🏃 Cardio do Dia</h3>
-                    <div class="inputs-row">
-                        <div class="input-group">
+                <!-- Seção de Cardio Elite -->
+                <div class="elite-cardio-card glass-card">
+                    <div class="cardio-header">
+                        <h3>🏃 Cardio do Dia</h3>
+                        <span class="cardio-status">Opcional</span>
+                    </div>
+                    <div class="elite-inputs-grid">
+                        <div class="elite-input-group">
                             <label>Atividade</label>
-                            <input type="text" id="cardio-type" placeholder="Ex: Esteira">
+                            <input type="text" id="cardio-type" placeholder="Ex: Esteira / Bike" class="elite-input">
                         </div>
-                        <div class="input-group">
+                        <div class="elite-input-group">
                             <label>Tempo (min)</label>
-                            <input type="number" id="cardio-time" placeholder="30">
+                            <input type="number" id="cardio-time" placeholder="30" class="elite-input">
                         </div>
                     </div>
                 </div>
 
-                <button id="add-exercise-btn" class="btn-primary glow-border">+ Adicionar Exercício</button>
-                <button id="save-workout-btn" class="btn-success">Salvar Plano Semanal</button>
+                <div class="creator-actions">
+                    <button id="add-exercise-btn" class="btn-add-elite" onclick="addExercise()">
+                        <span class="plus">+</span> Adicionar Exercício
+                    </button>
+                    <button id="save-workout-btn" class="btn-save-elite" onclick="saveWorkout()">
+                        <span class="icon">✨</span> Salvar Plano Semanal
+                    </button>
+                </div>
             </section>
             
             <!-- Screen: Feed (Hidden) -->
@@ -285,8 +284,38 @@
         </nav>
     </div> <!-- /main-app-container -->
 
-    <script src="/muscle-icons.js?v=2.2"></script>
-    <script src="/app.js?v=2.2"></script>
+    <!-- Modal Perfil do Professor -->
+    <div id="modal-trainer-profile" class="modal-overlay hidden">
+        <div class="modal-content glass-card" style="max-width: 450px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                <h2 class="glow-text" style="font-size:1.5rem;">Meu Perfil Elite</h2>
+                <button class="icon-btn" onclick="closeTrainerProfile()" style="font-size:1.2rem;">✕</button>
+            </div>
+            <div class="anamnesis-form" style="text-align: left;">
+                <div style="text-align:center; margin-bottom:1rem;">
+                    <img id="prof-img-preview" src="" class="trainer-avatar" style="width:80px; height:80px; margin:0 auto; display:block; object-fit:cover; border: 2px solid var(--accent);">
+                    <button class="btn-primary-small" onclick="document.getElementById('prof-img-input').click()" style="font-size:0.7rem; margin-top:5px;">Trocar Foto</button>
+                    <input type="file" id="prof-img-input" accept="image/*" class="hidden" onchange="previewProfImg(this)">
+                </div>
+                
+                <label>Nome do Professor</label>
+                <input type="text" id="prof-name" class="premium-input" style="margin-bottom:1rem;">
+                
+                <label>CREF / Registro</label>
+                <input type="text" id="prof-cref" class="premium-input" style="margin-bottom:1rem;">
+
+                <label>Especialidade</label>
+                <input type="text" id="prof-specialty" class="premium-input" style="margin-bottom:1rem;">
+
+                <label>Bio / Descrição Profissional</label>
+                <textarea id="prof-bio" class="premium-input" style="height:80px; margin-bottom:1.5rem; resize:none;"></textarea>
+
+                <button class="btn-success full-width" onclick="saveTrainerProfile()">Salvar Alterações ✨</button>
+                <button class="btn-primary full-width" style="background:transparent; margin-top:0.5rem;" onclick="logout()">Sair / Logout 🚪</button>
+            </div>
+        </div>
+    </div>
+    <script src="premium-features.js?v=2.5"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

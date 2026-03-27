@@ -1,31 +1,43 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 import json
 import uuid
 from datetime import datetime
 from .supabase_client import supabase
 from .auth_logic import hash_pin, verify_pin, format_phone
+from .auth import require_auth
 import jwt
 import os
 
 students_bp = Blueprint('students', __name__)
 
 @students_bp.route('/api/students', methods=['GET', 'POST'])
+@require_auth
 def handle_students():
     if request.method == 'POST':
         data = request.get_json()
         name = data.get('name')
         whatsapp = data.get('whatsapp')
         token = str(uuid.uuid4())[:8]
+        
+        # Associar ao professor logado se for o caso
+        trainer_id = g.user_id if g.user_role == 'professor' else data.get('trainer_id')
+        
         result = supabase.table('students').insert({
-            'name': name, 'whatsapp': whatsapp, 'access_token': token
+            'name': name, 'whatsapp': whatsapp, 'access_token': token, 'trainer_id': trainer_id
         }).execute()
         new_student = result.data[0] if result.data else {}
         return jsonify({"status": "success", "id": new_student.get('id'), "access_token": token, "whatsapp": whatsapp}), 201
     
-    result = supabase.table('students').select('*').execute()
+    # Se for professor, filtrar alunos DELE
+    query = supabase.table('students').select('*')
+    if g.user_role == 'professor':
+        query = query.eq('trainer_id', g.user_id)
+    
+    result = query.execute()
     return jsonify(result.data)
 
 @students_bp.route('/api/students/<int:id>', methods=['DELETE'])
+@require_auth
 def delete_student(id):
     supabase.table('workout_progress').delete().eq('student_id', id).execute()
     supabase.table('notifications').delete().eq('student_id', id).execute()
@@ -75,6 +87,7 @@ def track_analytics():
     return jsonify({"status": "captured"})
 
 @students_bp.route('/api/students/profile', methods=['PUT', 'POST'])
+@require_auth
 def update_student_profile():
     data = request.json
     student_id = data.get('id')

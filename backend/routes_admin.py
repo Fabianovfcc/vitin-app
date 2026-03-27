@@ -38,26 +38,33 @@ def get_notifications(role):
     return jsonify(result.data)
 
 @admin_bp.route('/api/notifications/mark-read', methods=['POST'])
+@require_auth
 def mark_notifications_read():
     data = request.get_json()
     role = data.get('role', '')
     student_id = data.get('student_id')
     query = supabase.table('notifications').update({'is_read': True}).eq('target_role', role)
+    if role == 'professor' and g.user_role == 'professor':
+        query = query.eq('trainer_id', g.user_id)
     if role == 'aluno' and student_id:
         query = query.eq('student_id', student_id)
     query.execute()
     return jsonify({"status": "ok"})
 
 @admin_bp.route('/api/notifications/unread-count/<role>')
+@require_auth
 def unread_count(role):
     student_id = request.args.get('student_id')
     query = supabase.table('notifications').select('id', count='exact').eq('target_role', role).eq('is_read', False)
+    if role == 'professor' and g.user_role == 'professor':
+        query = query.eq('trainer_id', g.user_id)
     if role == 'aluno' and student_id:
         query = query.eq('student_id', student_id)
     result = query.execute()
     return jsonify({"count": result.count if result.count is not None else 0})
 
 @admin_bp.route('/api/challenges/active', methods=['GET', 'POST', 'DELETE'])
+@require_auth
 def handle_active_challenge():
     if request.method == 'POST':
         data = request.get_json()
@@ -78,6 +85,7 @@ def handle_active_challenge():
     return jsonify({"active": False}), 404
 
 @admin_bp.route('/api/history/<int:student_id>')
+@require_auth
 def get_history(student_id):
     result = supabase.table('workout_history').select('*').eq(
         'student_id', student_id
@@ -85,7 +93,18 @@ def get_history(student_id):
     return jsonify(result.data)
 
 @admin_bp.route('/api/history/recent')
+@require_auth
 def recent_history():
+    if g.user_role == 'professor':
+        # Filtrar por alunos do professor
+        res_students = supabase.table('students').select('id').eq('trainer_id', g.user_id).execute()
+        student_ids = [s['id'] for s in res_students.data]
+        if not student_ids:
+            return jsonify([])
+        result = supabase.table('workout_history').select('*').in_('student_id', student_ids).order('finished_at', desc=True).limit(20).execute()
+        return jsonify(result.data)
+    
+    # Master vê tudo
     result = supabase.table('workout_history').select('*').order('finished_at', desc=True).limit(20).execute()
     return jsonify(result.data)
 
@@ -110,6 +129,7 @@ def handle_trainer_profile():
     return jsonify(result.data[0])
 
 @admin_bp.route('/api/upload', methods=['POST'])
+@require_auth
 def upload_file():
     if 'file' not in request.files:
         return jsonify({"error": "Nenhum arquivo enviado"}), 400

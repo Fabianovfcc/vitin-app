@@ -49,6 +49,10 @@ def aluno():
 def aluno_direto(token):
     return send_from_directory(app.static_folder, 'aluno.html')
 
+@app.route('/master')
+def master_admin():
+    return send_from_directory(app.static_folder, 'super_admin.html')
+
 @app.route('/<path:path>')
 def static_files(path):
     return send_from_directory(app.static_folder, path)
