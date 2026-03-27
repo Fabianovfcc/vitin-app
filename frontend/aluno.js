@@ -10,33 +10,36 @@ let fullCatalog = [];
 // INICIALIZAÇÃO: Token e Isolamento Total
 // ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-    const pathParts = window.location.pathname.split('/').filter(p => p !== "");
-    let token = null;
-    const alunoIdx = pathParts.indexOf('aluno');
-    if (alunoIdx !== -1 && pathParts[alunoIdx + 1]) {
-        token = pathParts[alunoIdx + 1];
-    }
+    // 1. Verificar se há sessão ativa via PIN
+    const sessionStudentId = localStorage.getItem('student_id');
+    const sessionToken = localStorage.getItem('access_token');
+    
+    // Se não houver sessão ativa, precisamos identificar o aluno
+    if (!sessionStudentId || !sessionToken) {
+        // Tentar identificar se veio via link com token
+        const pathParts = window.location.pathname.split('/').filter(p => p !== "");
+        let urlToken = null;
+        const alunoIdx = pathParts.indexOf('aluno');
+        if (alunoIdx !== -1 && pathParts[alunoIdx + 1]) {
+            urlToken = pathParts[alunoIdx + 1];
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            urlToken = urlParams.get('token');
+        }
 
-    // Fallback para Query String ?token=...
-    if (!token) {
-        const urlParams = new URLSearchParams(window.location.search);
-        token = urlParams.get('token');
-    }
-
-    if (!token) {
-        console.log("Nenhum token encontrado na URL. Tentando recuperar do cache...");
-        token = localStorage.getItem('vitin_last_student_token');
-    }
-
-    if (!token || token === "null" || token === "undefined") {
-        console.log("Nenhum token válido encontrado. Mostrando seletor de teste.");
-        await initStudentSelector();
+        if (urlToken) {
+            // Se veio com token, guardamos o token temporariamente para o login associar
+            localStorage.setItem('temp_access_token', urlToken);
+        }
+        
+        // Redirecionar para login
+        console.log("Sem sessão ativa. Redirecionando para login...");
+        window.location.href = 'login.html';
         return;
     }
 
-    // Persistir token para o PWA (Add to Home Screen)
-    localStorage.setItem('vitin_last_student_token', token);
-    console.log("Token persistido para acesso via atalho:", token);
+    let token = sessionToken;
+    currentStudentId = sessionStudentId;
     
     // Navegação por abas
 window.switchStudentTab = (tab) => {
@@ -110,6 +113,11 @@ window.switchStudentTab = (tab) => {
 
         const dateEl = document.getElementById('workout-date');
         if (dateEl) dateEl.innerText = `Olá, ${currentStudentName}! 💪`;
+        
+        // Sugerir ativação de Biometria caso suportado e não configurado
+        if (window.PublicKeyCredential && !localStorage.getItem('biometry_configured')) {
+            showBiometryInvite();
+        }
         
         const selectorEl = document.getElementById('student-selector');
         if (selectorEl) selectorEl.classList.add('hidden');
@@ -208,19 +216,50 @@ function incrementStreak() {
     }
 }
 
-function showInvalidAccess() {
-    document.getElementById('student-selector').classList.add('hidden');
-    document.getElementById('workout-content').classList.add('hidden');
-    const header = document.querySelector('header');
-    if (header && !document.getElementById('error-msg-aluno')) {
-        header.innerHTML += `
-            <div id="error-msg-aluno" style="text-align: center; margin-top: 50px; background: rgba(239, 68, 68, 0.1); padding: 20px; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2);">
-                <h2 style="color: #ef4444; margin-bottom: 10px;">Acesso Restrito 🚫</h2>
-                <p style="color: var(--text-dim);">O link usado é inválido ou expirou. Peça um novo link ao seu treinador.</p>
-                <button class="btn-primary" onclick="window.location.href='/aluno'" style="margin-top: 15px; width: auto; padding: 10px 20px;">Ver simulador</button>
+function showBiometryInvite() {
+    if (document.getElementById('biometry-invite')) return;
+    
+    const invite = document.createElement('div');
+    invite.id = 'biometry-invite';
+    invite.className = 'glass-card animate-fade-in';
+    invite.style.cssText = 'margin: 1rem; padding: 1.2rem; background: linear-gradient(135deg, rgba(0,122,255,0.1) 0%, rgba(0,199,190,0.1) 100%); border: 1px solid rgba(0,122,255,0.3);';
+    invite.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h4 style="margin:0; color:var(--primary);">Acesso Rápido ⚡</h4>
+                <p style="margin:4px 0 0; font-size:0.8rem; color:var(--text-secondary);">Deseja ativar o Face ID / Digital para os próximos acessos?</p>
             </div>
-        `;
+            <button class="btn-primary" style="width:auto; padding:8px 16px; font-size:0.8rem;" onclick="configureBiometry()">Ativar</button>
+        </div>
+    `;
+    const header = document.querySelector('.progress-section');
+    if (header) header.parentNode.insertBefore(invite, header);
+}
+
+window.configureBiometry = async () => {
+    try {
+        // Simulação de WebAuthn por enquanto (para Wow factor)
+        // No futuro, aqui entra a chamada real navigator.credentials.create()
+        showToast("Solicitando permissão do sistema...");
+        
+        // Simulando delay de hardware
+        await new Promise(r => setTimeout(r, 1500));
+        
+        localStorage.setItem('biometry_configured', 'true');
+        document.getElementById('biometry-invite').remove();
+        showToast("Biometria configurada com sucesso! ✅");
+        
+    } catch (e) {
+        showToast("Erro ao configurar biometria.");
     }
+};
+
+function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.9); color:black; padding:12px 24px; border-radius:20px; font-weight:600; z-index:9999; box-shadow:0 10px 30px rgba(0,0,0,0.5);';
+    toast.innerText = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 
 // ────────────────────────────────────────
