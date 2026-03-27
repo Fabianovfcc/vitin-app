@@ -108,6 +108,7 @@ async function loadTrainersDetailed() {
                 <td>
                     <button class="icon-btn" onclick="openTrainerModal(${JSON.stringify(t).replace(/"/g, '&quot;')})">✏️</button>
                     <button class="icon-btn" onclick="viewTrainerStudents(${t.id})">👥</button>
+                    <button class="icon-btn" style="color:#25d366" onclick="sendTrainerLink(${JSON.stringify(t).replace(/"/g, '&quot;')})">📲</button>
                     <button class="icon-btn" style="color:#ef4444" onclick="deleteTrainer(${t.id})">🗑️</button>
                 </td>
             </tr>
@@ -276,6 +277,7 @@ function renderAllStudents(students) {
             <td>${s.status}</td>
             <td>
                 <button class="icon-btn" onclick="openStudentModal(${JSON.stringify(s).replace(/"/g, '&quot;')})">✏️</button>
+                <button class="icon-btn" style="color:#25d366" onclick="sendStudentLink(${JSON.stringify(s).replace(/"/g, '&quot;')})">📲</button>
                 <button class="icon-btn" style="color:#ef4444" onclick="deleteStudentGlobal(${s.id})">🗑️</button>
             </td>
         </tr>
@@ -694,3 +696,24 @@ window.clearAppCache = () => {
         }
     }
 };
+
+// --- WHATSAPP UTILS ---
+window.sendStudentLink = (s) => {
+    if (!s.whatsapp) return alert("WhatsApp do aluno não cadastrado!");
+    const link = `${window.location.origin}/aluno/${s.access_token}`;
+    const msg = `Olá ${s.name}! Aqui está o seu link de acesso aos treinos no Vitin App Elite: ${link}\n\nNo primeiro acesso, você definirá seu PIN de segurança. 💪`;
+    openWhatsApp(s.whatsapp, msg);
+};
+
+window.sendTrainerLink = (t) => {
+    if (!t.whatsapp) return alert("WhatsApp do professor não cadastrado!");
+    const link = `${window.location.origin}/index.html`;
+    const msg = `Olá ${t.name}! Aqui está o seu link de acesso ao Painel do Professor no Vitin App Elite: ${link}\n\nUse sua senha cadastrada para entrar. 🔥`;
+    openWhatsApp(t.whatsapp, msg);
+};
+
+function openWhatsApp(phone, msg) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+}
