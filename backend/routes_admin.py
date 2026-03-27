@@ -1,13 +1,11 @@
-from flask import Blueprint, jsonify, request, current_app
-from datetime import datetime
-import os
-import uuid
-from werkzeug.utils import secure_filename
 from .supabase_client import supabase
+from .auth import require_auth
+from flask import Blueprint, jsonify, request, current_app, g
 
 admin_bp = Blueprint('admin', __name__)
 
 @admin_bp.route('/api/exercises', methods=['GET', 'POST'])
+@require_auth
 def handle_exercises():
     if request.method == 'POST':
         data = request.get_json()
@@ -26,9 +24,14 @@ def handle_exercises():
     return jsonify(result.data)
 
 @admin_bp.route('/api/notifications/<role>')
+@require_auth
 def get_notifications(role):
+    # Professores só veem suas notificações
     student_id = request.args.get('student_id')
     query = supabase.table('notifications').select('*').eq('target_role', role)
+    
+    if role == 'professor' and g.user_role == 'professor':
+        query = query.eq('trainer_id', g.user_id)
     if role == 'aluno' and student_id:
         query = query.eq('student_id', student_id)
     result = query.order('created_at', desc=True).limit(20).execute()
@@ -87,8 +90,12 @@ def recent_history():
     return jsonify(result.data)
 
 @admin_bp.route('/api/trainer/profile', methods=['GET', 'POST'])
+@require_auth
 def handle_trainer_profile():
-    trainer_id = 1
+    if g.user_role != 'professor':
+        return jsonify({"error": "Acesso restrito a professores"}), 403
+    
+    trainer_id = g.user_id
     if request.method == 'POST':
         data = request.get_json()
         supabase.table('trainers').update({

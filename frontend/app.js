@@ -211,20 +211,25 @@ function renderStudents(students) {
     const grid = document.getElementById('students-grid');
     grid.innerHTML = '';
 
+    if (students.length === 0) {
+        grid.innerHTML = '<p class="subtitle" style="grid-column: 1/-1; text-align:center;">Nenhum aluno cadastrado.</p>';
+        return;
+    }
+
     students.forEach(student => {
         const card = document.createElement('div');
-        card.className = 'student-card glass-card';
+        card.className = 'student-card-elite animate-fade-in';
         
-        const statusColor = student.status === 'active' ? '#10b981' : '#f59e0b';
+        const initial = student.name ? student.name.charAt(0).toUpperCase() : '?';
+        const lastWorkout = student.last_workout || 'Aguardando...';
         
         card.innerHTML = `
-            <div class="student-info">
-                <h3>${student.name}</h3>
-                <p>Último treino: ${student.last_workout || 'Nenhum'}</p>
-            </div>
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem;">
-                <div class="status-dot" style="background:${statusColor};"></div>
-                <button onclick="deleteStudent(${student.id}, event)" class="icon-btn" style="color:#ff4d4d; font-size:1.2rem;">×</button>
+            <div class="student-avatar">${initial}</div>
+            <h3 style="font-size: 1rem; margin-bottom: 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${student.name}</h3>
+            <p style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 1rem;">${lastWorkout}</p>
+            
+            <div style="display:flex; justify-content:center; gap:0.5rem;">
+                <button onclick="event.stopPropagation(); deleteStudent(${student.id})" class="icon-btn" style="font-size:1rem; opacity:0.5;">🗑️</button>
             </div>
         `;
         card.onclick = () => openWorkoutCreator(student);

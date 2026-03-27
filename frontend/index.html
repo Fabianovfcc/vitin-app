@@ -120,23 +120,23 @@
         </div>
 
         <main>
-            <section id="stats-overview" class="glass-card">
-                <div class="stat-item">
-                    <span id="stat-total" class="stat-value">0</span>
-                    <span class="stat-label">Alunos Ativos</span>
+            <section id="stats-overview" class="prof-stats-grid">
+                <div class="prof-kpi-card glass-card">
+                    <span id="stat-total" class="prof-kpi-val">0</span>
+                    <span class="prof-kpi-label">Alunos Ativos</span>
                 </div>
-                <div class="stat-item">
-                    <span id="stat-today" class="stat-value">0</span>
-                    <span class="stat-label">Treinaram Hoje</span>
+                <div class="prof-kpi-card glass-card">
+                    <span id="stat-today" class="prof-kpi-val">0</span>
+                    <span class="prof-kpi-label">Treinaram Hoje</span>
                 </div>
             </section>
 
             <section id="students-list">
-                <div class="header-action">
+                <div class="header-action" style="justify-content: space-between;">
                     <h2 class="section-title">Seus Alunos</h2>
-                    <button class="btn-create-ex" onclick="showNewStudentForm()">+ Novo Aluno</button>
+                    <button class="btn-primary" onclick="showNewStudentForm()" style="width: auto; margin:0; padding: 8px 15px; font-size: 0.8rem;">+ Novo Aluno</button>
                 </div>
-                <div id="students-grid" class="grid">
+                <div id="students-grid" class="student-grid-elite">
                     <!-- Dinamicamente preenchido pelo JS -->
                 </div>
             </section>
